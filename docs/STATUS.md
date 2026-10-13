@@ -8,7 +8,7 @@
 | MCP stdio read tools + write opt-in | implementováno, discovery test; wire smoke viz VALIDATION |
 | Raw zdroje a idempotence, queue/retry, audit, export | implementováno |
 | Reference persistent graf | implementováno, behavior testy |
-| Neo4j native active-map adapter | implementováno; živý server zde nebyl spuštěn |
+| Neo4j native active-map adapter | implementováno; živý Neo4j roundtrip prošel v GitHub Actions |
 | Graphiti adapter 0.30.2, oddělený model/embedder | implementováno; constructor/contract test, bez reálné inference |
 | User LLM structured extraction, přesné citace | implementováno; lokální mocked failure/success testy; kvalita modelu neměřena |
 | Theme recurrence, exact identity, activity/decay | implementováno |
@@ -22,7 +22,7 @@
 | Webové UI pro myšlenkovou mapu | backlog AM-004; map API dnes vrací JSON |
 | JSONL import normalizovaných zpráv | implementováno |
 | Originální chatbot export connectors | backlog AM-010 |
-| Docker/Compose/Coolify/CI | konfigurace dodána; image build/live deployment zde neověřeno |
+| Docker/Compose/Coolify/CI | Compose validace a image build prošly v CI; skutečný Coolify deploy zatím neproveden |
 | Enterprise IAM/multi-tenant/security hardening | mimo základ; IAM interface/backlog zachováno |
 
 ## Praktické limity

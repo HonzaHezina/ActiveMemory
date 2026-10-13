@@ -23,10 +23,21 @@ scope injection rejection, přesné citace, candidate/rejected exclusion, znakov
 cross-conversation recurrence, různé claims se stejným labelem, current/historical validity,
 source deletion, tombstone, restart s pending jobem, retry po backend failure a scope binding.
 
-Docker daemon zde není dostupný. Neproběhl image build, `docker compose config`, živý Neo4j,
-Graphiti inference, provider matrix ani skutečný Coolify deploy. CI obsahuje Docker build,
-Compose validaci a live native Neo4j test; placený Graphiti test je explicitně opt-in.
-Živé testy jsou dodané v `tests/test_live_graph.py`, nikoli předstírané jako provedené.
+## Doplnění po nahrání do GitHubu
+
+[GitHub Actions run 38407785368](https://github.com/HonzaHezina/ActiveMemory/actions/runs/38407785368)
+pro commit `ba466480c1675e7f6c47d9e01f06bdc92a1a9d14` úspěšně ověřil:
+
+- zamčenou instalaci, lint, formát a 19 testů (2 live opt-in testy v běžné sadě přeskočené),
+- `docker compose config` pro reference a Neo4j overlay,
+- Docker image build `active-memory:ci`,
+- samostatný native Neo4j integration test: **1 passed**, 1 Graphiti test deselected.
+
+První běh CI odhalil chybějící `.env` pro Compose validaci. Workflow nyní před kontrolou
+vytvoří neprodukční `.env` z `.env.example`; obsah není ukládán do Gitu.
+Graphiti inference, provider matrix a skutečný Coolify deploy stále neproběhly.
+Placený Graphiti test zůstává explicitně opt-in. Lokální pracovní prostředí Docker daemon nemá;
+Docker a Neo4j kontroly proběhly na GitHub runneru.
 
 Příklad spuštění live Neo4j testu v místě, kde běží vlastní čistý testovací Neo4j:
 

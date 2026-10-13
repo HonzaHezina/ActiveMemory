@@ -13,6 +13,8 @@ myšlenky, témata, cíle, otázky, rozhodnutí, změny a vazby. Graf je hlavní
 embeddingy pomáhají hledat podobnost. Zdrojová zpráva a citace se nesmí ztratit.
 
 První běh:
+Aktuální důkazy jsou v docs/VALIDATION.md: CI již ověřilo native Neo4j, Compose a Docker build.
+Při nezměněném kódu je neopakuj bez důvodu; dokonči zejména neověřenou Graphiti/model část.
 1. Ověř spuštění reference API a všechny testy, nic zbytečně nepřepisuj.
 2. Zaznamenej rozdíl mezi implementací a cílem; vycházej ze STATUS.
 3. Připrav a proveď skutečný integrační test v Dockeru s Neo4j a Graphiti 0.30.2:
