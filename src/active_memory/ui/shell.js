@@ -27,6 +27,10 @@
     if (response.status === 401) { disconnect(); throw new ApiError(401, "Token není platný nebo byl odvolán. Připojte se znovu."); }
     if (response.status === 403) throw new ApiError(403, "Token nemá potřebné oprávnění.");
     if (response.status === 404) throw new ApiError(404, "Nenalezeno (možná bylo smazáno).");
+    if (response.status === 422) {
+      const detail = await response.json().catch(() => ({}));
+      throw new ApiError(422, typeof detail.detail === "string" ? detail.detail : "Neplatná hodnota.");
+    }
     if (response.status === 409 || response.status === 503) {
       const detail = await response.json().catch(() => ({}));
       throw new ApiError(response.status, detail.detail || (response.status === 409 ? "Stav se mezitím změnil." : "Služba je dočasně nedostupná."));
@@ -38,6 +42,8 @@
   function register(name, view) { views[name] = Object.assign({ dirty: true }, view); }
 
   function markDirty() { for (const view of Object.values(views)) view.dirty = true; }
+
+  function paintWelcome() { $("welcome").hidden = !!session.token; }
 
   function paintNav() {
     for (const button of document.querySelectorAll("#nav button")) {
@@ -54,6 +60,7 @@
     session.active = name;
     session.tab = (params && params.tab) || (name === "map" ? session.tab || "themes" : null);
     paintNav();
+    paintWelcome();
     const view = views[name];
     if (!view) return;
     try {
@@ -77,6 +84,7 @@
     session.token = null; session.canDecide = false; session.clientId = null;
     $("who").textContent = ""; $("disconnect").hidden = true; $("connect").hidden = false;
     $("review-count").textContent = ""; $("proposal-count").textContent = "";
+    paintWelcome();
     markDirty();
     for (const view of Object.values(views)) view.clear();
   }

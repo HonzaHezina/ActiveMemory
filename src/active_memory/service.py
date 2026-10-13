@@ -1,8 +1,12 @@
 import asyncio
 import copy
+import logging
 import re
+import time
 from urllib.parse import urlparse
 from uuid import uuid4
+
+import httpx
 
 from . import events as ev
 from .engine import add_extraction, consolidate, identity, remove_episode
@@ -10,6 +14,14 @@ from .graph import Neo4jGraph, ReferenceGraph
 from .journal import Conflict, Journal
 from .models import Extraction, Message, utcnow
 from .providers import GraphitiAdapter, LLMExtractor, LLMRelationJudge, OpenAIEmbeddings
+from .settings import (
+    RUNTIME_FIELDS,
+    SECRET_FIELDS,
+    Settings,
+    check_endpoint,
+    load_overrides,
+    save_overrides,
+)
 from .similarity import (
     candidate_pairs,
     embedding_text,
@@ -56,6 +68,17 @@ def parse_cursor(cursor):
 
 class MemoryService:
     def __init__(self, settings):
+        self.http_transport = None  # tests inject a mock transport for provider calls
+        self.overridden = []
+        try:
+            overrides = load_overrides(settings.data_dir)
+            if overrides:
+                settings = Settings(**{**settings.model_dump(), **overrides})
+                self.overridden = sorted(overrides)
+        except Exception as error:  # fail safe: ignore a broken override file, keep env settings
+            logging.getLogger(__name__).warning(
+                "ignoring settings override: %s", type(error).__name__
+            )
         self.settings = settings
         self.journal = Journal(settings.data_dir, settings.scope)
         self.graph = (
@@ -77,6 +100,111 @@ class MemoryService:
             await self.graphiti.initialize()
         self.recover()
         self.reconcile_events()
+
+    # -- runtime LLM settings --------------------------------------------------------------
+    def settings_view(self):
+        s = self.settings
+        return {
+            "runtime": {k: getattr(s, k) for k in RUNTIME_FIELDS if k not in SECRET_FIELDS},
+            "secrets": {k: bool(getattr(s, k)) for k in SECRET_FIELDS},
+            "overridden": self.overridden,
+            "providers": {
+                "model_host": urlparse(s.model_base_url).hostname,
+                "embedding_host": urlparse(s.embedding_base_url).hostname,
+            },
+            "fixed": {
+                "backend": s.backend,
+                "graphiti_enabled": s.graphiti_enabled,
+                "scope": s.scope,
+            },
+            "active": {
+                "extraction": "llm" if self.extractor else "provided",
+                "embeddings": bool(self.embedder),
+                "judge": bool(self.judge),
+            },
+            "usage": {
+                "extractor": getattr(self.extractor, "usage", None),
+                "embedder": getattr(self.embedder, "usage", None),
+                "judge": getattr(self.judge, "usage", None),
+            },
+        }
+
+    async def configure(self, changes, actor):
+        """Apply an admin's change to the provider settings; invalid changes change nothing."""
+        async with self.lock:
+            merged = self.settings.model_dump()
+            changed = []
+            for key, value in changes.items():
+                if key not in RUNTIME_FIELDS or value is None:
+                    continue
+                if merged[key] != value:
+                    changed.append(key)
+                    merged[key] = value
+            for key in ("model_base_url", "embedding_base_url"):
+                if key in changed:
+                    check_endpoint(merged[key])
+            try:
+                new = Settings(**merged)
+            except Exception as error:
+                errors = getattr(error, "errors", None)
+                message = errors()[0]["msg"].removeprefix("Value error, ") if errors else str(error)
+                raise ValueError(message) from None
+            if not changed:
+                return self.settings_view()
+            extractor = LLMExtractor(new) if new.extraction_mode == "llm" else None
+            embedder = OpenAIEmbeddings(new) if new.similarity_mode == "embedding" else None
+            judge = LLMRelationJudge(new) if new.judge_enabled else None
+            save_overrides(new.data_dir, {k: merged[k] for k in RUNTIME_FIELDS})
+            self.settings, self.extractor, self.embedder, self.judge = (
+                new,
+                extractor,
+                embedder,
+                judge,
+            )
+            self.overridden = sorted(RUNTIME_FIELDS)
+            # Names only: no values, no keys. This is operational audit, not a public event.
+            self.journal.audit(actor, "settings_changed", ",".join(sorted(changed)))
+            return self.settings_view()
+
+    async def test_provider(self, target, actor):
+        """One tiny synthetic request (never user data) to check that a provider answers."""
+        s = self.settings
+        if not s.allow_model_calls:
+            raise ValueError("model calls are not allowed; enable them first")
+        if target == "model":
+            url, key, body = (
+                s.model_base_url.rstrip("/") + "/chat/completions",
+                s.model_api_key,
+                {
+                    "model": s.model_name,
+                    "messages": [{"role": "user", "content": "Reply with the single word OK."}],
+                    "max_tokens": 8,
+                },
+            )
+        else:
+            url, key, body = (
+                s.embedding_base_url.rstrip("/") + "/embeddings",
+                s.embedding_api_key,
+                {"model": s.embedding_model, "input": ["test"]},
+            )
+        if not key:
+            raise ValueError("no API key is set for this provider")
+        started = time.monotonic()
+        result = {"ok": False, "target": target, "host": urlparse(url).hostname}
+        try:
+            async with httpx.AsyncClient(
+                timeout=min(s.timeout_seconds, 30), transport=self.http_transport
+            ) as client:
+                response = await client.post(
+                    url, headers={"Authorization": f"Bearer {key}"}, json=body
+                )
+            result["status"] = response.status_code
+            result["ok"] = response.is_success
+        except Exception as error:  # the class only: provider errors may echo secrets
+            result["error"] = type(error).__name__
+        result["latency_ms"] = round((time.monotonic() - started) * 1000)
+        self.journal.audit(actor, "settings_test", f"{target}:{'ok' if result['ok'] else 'failed'}")
+        return result
 
     # -- events ---------------------------------------------------------------------------
     def record(self, event, applied=True):

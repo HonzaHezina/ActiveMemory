@@ -132,3 +132,27 @@ class Verdict(Strict):
     reason: str = Field(min_length=1, max_length=600)
     quote_a: str = Field(default="", max_length=4000)
     quote_b: str = Field(default="", max_length=4000)
+
+
+class LLMSettingsUpdate(Strict):
+    """Partial update: absent or null fields stay as they are. Keys are write-only."""
+
+    model_config = ConfigDict(extra="forbid", protected_namespaces=())
+
+    extraction_mode: Literal["provided", "llm"] | None = None
+    allow_model_calls: bool | None = None
+    model_base_url: str | None = Field(default=None, max_length=500)
+    model_name: str | None = Field(default=None, min_length=1, max_length=200)
+    model_api_key: str | None = Field(default=None, max_length=500)  # "" removes the key
+    embedding_base_url: str | None = Field(default=None, max_length=500)
+    embedding_model: str | None = Field(default=None, min_length=1, max_length=200)
+    embedding_dim: int | None = Field(default=None, ge=8, le=8192)
+    embedding_api_key: str | None = Field(default=None, max_length=500)
+    similarity_mode: Literal["lexical", "embedding"] | None = None
+    judge_enabled: bool | None = None
+    max_judge_calls: int | None = Field(default=None, ge=0, le=500)
+    auto_propose: bool | None = None
+
+
+class ProviderTest(Strict):
+    target: Literal["model", "embedding"]

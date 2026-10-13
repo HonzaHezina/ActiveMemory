@@ -29,7 +29,14 @@
   <button type="button" data-view="map" data-tab="themes">Témata</button>
   <button type="button" data-view="map" data-tab="proposals">Návrhy vazeb <span id="proposal-count" class="count"></span></button>
   <button type="button" data-view="timeline">Časová osa</button>
+  <button type="button" data-view="settings">Nastavení</button>
+  <button type="button" data-view="help">Nápověda</button>
 </nav>
+<div id="welcome" class="note welcome">
+  <strong>Vítejte.</strong> Active Memory ukazuje, co si z vašich konverzací zapamatovat. Stroj navrhuje, rozhodujete vy.
+  Vložte nahoře přístupový token a klikněte na Připojit. Pak v menu otevřete <strong>Konverzace</strong>, potom <strong>Ke schválení</strong>.
+  Víc v <strong>Nápovědě</strong>.
+</div>
 <div id="message" class="message" role="status" aria-live="polite"></div>
 <main>
   <section data-view="conversations" aria-labelledby="conv-h">
@@ -97,6 +104,95 @@
     <ol id="timeline" class="timeline"></ol>
     <button type="button" id="older" hidden>Starší události</button>
   </section>
+
+  <section data-view="settings" aria-labelledby="settings-h" hidden>
+    <h2 id="settings-h">Nastavení modelu (LLM)</h2>
+    <p class="lead">Tady určíte, jestli a kde pracuje jazykový model na pozadí: při zpracování každé nové zprávy, při hledání podobných myšlenek a při posuzování vazeb.
+      <strong>Ve výchozím stavu je vše vypnuto a nic se nikam neodesílá.</strong>
+      Změnu smí provést jen administrátor. Klíč se zadává jen zde, nikdy se nezobrazí zpět a ukládá se do datové složky serveru.</p>
+    <p id="settings-info" class="meta"></p>
+    <form id="settings-form" autocomplete="off" class="settings">
+      <fieldset>
+        <legend>1. Odkud se berou návrhy</legend>
+        <label class="choice"><input type="radio" name="extraction_mode" value="provided"> <span><strong>Dodané</strong> – návrhy posílá klient spolu se zprávou. Žádný model se nevolá. Zprávy bez dodaných návrhů se jen uloží.</span></label>
+        <label class="choice"><input type="radio" name="extraction_mode" value="llm"> <span><strong>Model</strong> – každá nová zpráva uživatele se na pozadí odešle poskytovateli modelu, který z ní navrhne myšlenky, cíle a otázky s citací. Hodí se pro konverzace, které přicházejí z chatovacích aplikací bez hotových návrhů. Pořád jde jen o návrhy ke schválení.</span></label>
+      </fieldset>
+      <fieldset>
+        <legend>2. Poskytovatel modelu</legend>
+        <label>Předvolba adresy
+          <select id="s-preset">
+            <option value="">(vlastní)</option>
+            <option value="https://api.openai.com/v1">OpenAI</option>
+            <option value="https://generativelanguage.googleapis.com/v1beta/openai">Google Gemini (OpenAI-kompatibilní rozhraní)</option>
+            <option value="https://api.mistral.ai/v1">Mistral</option>
+            <option value="https://openrouter.ai/api/v1">OpenRouter</option>
+            <option value="http://localhost:11434/v1">Lokální model (Ollama)</option>
+          </select></label>
+        <label>Adresa API <input id="s-model_base_url" type="text" inputmode="url" placeholder="https://…/v1"></label>
+        <label>Název modelu <input id="s-model_name" type="text" placeholder="např. gpt-4.1-mini"></label>
+        <label>Klíč API <input id="s-model_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
+        <p id="s-model-key-state" class="meta"></p>
+        <p class="meta">Gemini i Mistral nabízejí rozhraní ve stylu OpenAI, proto stačí adresa, název modelu a klíč. Zda zvolený model umí strukturovaný JSON výstup, který extrakce vyžaduje, a jak si vede v češtině, <strong>jsme neověřili</strong> – otestujte na vlastních datech (tlačítko Otestovat ověří jen spojení). Jeden poskytovatel pro model a jeden pro embeddingy; víc profilů je v plánu.</p>
+      </fieldset>
+      <fieldset>
+        <legend>3. Souhlas s odesláním</legend>
+        <label class="choice"><input id="s-allow_model_calls" type="checkbox"> <span id="s-consent-text">Souhlasím s odesíláním textů zpráv poskytovateli modelu.</span></label>
+      </fieldset>
+      <fieldset>
+        <legend>4. Vazby mezi myšlenkami (volitelné)</legend>
+        <label>Hledání podobností
+          <select id="s-similarity_mode"><option value="lexical">jen z textu (bez služby)</option><option value="embedding">pomocí embeddingů (odesílá texty poskytovateli)</option></select></label>
+        <label>Předvolba adresy embeddingů
+          <select id="s-emb-preset">
+            <option value="">(vlastní)</option>
+            <option value="https://api.openai.com/v1">OpenAI</option>
+            <option value="https://generativelanguage.googleapis.com/v1beta/openai">Google Gemini</option>
+            <option value="https://api.mistral.ai/v1">Mistral</option>
+          </select></label>
+        <label>Adresa embeddingů <input id="s-embedding_base_url" type="text" inputmode="url"></label>
+        <label>Model embeddingů <input id="s-embedding_model" type="text"></label>
+        <label>Klíč embeddingů <input id="s-embedding_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
+        <p id="s-emb-key-state" class="meta"></p>
+        <label class="choice"><input id="s-judge_enabled" type="checkbox"> <span>Nechat model posoudit, zda jsou dvě myšlenky totéž nebo protiklad (jen návrh, rozhoduje člověk).</span></label>
+        <label class="choice"><input id="s-auto_propose" type="checkbox"> <span>Po každé nové zprávě automaticky navrhnout vazby.</span></label>
+      </fieldset>
+      <div class="actions">
+        <button type="submit" class="primary" id="s-save">Uložit nastavení</button>
+        <button type="button" id="s-test-model">Otestovat model</button>
+        <button type="button" id="s-test-embedding">Otestovat embeddingy</button>
+      </div>
+    </form>
+    <div id="settings-result" class="note" hidden role="status"></div>
+    <details class="tech"><summary>Stav a spotřeba</summary><div id="settings-state"></div></details>
+    <p class="meta">Změna platí pro nově vložené zprávy. Už zpracované zprávy se nepřepočítávají. Test posílá jen krátký vymyšlený text, nikdy vaše zprávy.
+      Zatím není nastavitelný denní strop nákladů ani počtu volání (kromě počtu posouzení vazeb). Backend, Neo4j a Graphiti se nastavují při nasazení, ne zde.</p>
+  </section>
+
+  <section data-view="help" aria-labelledby="help-h" hidden>
+    <h2 id="help-h">Nápověda</h2>
+    <p class="lead">Active Memory si z vašich konverzací vybírá, co stojí za zapamatování, a ukazuje to k <strong>vašemu</strong> schválení. Nic se nepovažuje za pravdu, dokud to nepotvrdíte.</p>
+    <h3>Jak začít</h3>
+    <ol class="steps">
+      <li><strong>Konverzace</strong> – projděte si zprávy tak, jak byly dodány. Pod zprávou je vidět, co z ní vzniklo.</li>
+      <li><strong>Ke schválení</strong> – u každého návrhu je přesná citace a odkud pochází. Klikněte na <em>Potvrdit</em> nebo <em>Zamítnout</em>.</li>
+      <li><strong>Graf</strong> – souvislosti jedné konverzace nebo tématu na obrázku.</li>
+      <li><strong>Časová osa</strong> – co se skutečně stalo a kdy.</li>
+      <li><strong>Nastavení</strong> – zapnutí modelu, který na pozadí navrhuje z nových zpráv (výchozí stav: vypnuto).</li>
+    </ol>
+    <h3>Pojmy</h3>
+    <dl class="glossary">
+      <dt>Návrh (kandidát)</dt><dd>Myšlenka, téma, cíl, otázka, rozhodnutí nebo fakt, který z konverzace vyvodil klient nebo model. Je podložený citací, ale <strong>není to potvrzený fakt</strong>. Na obrazovce je čárkovaně.</dd>
+      <dt>Potvrzeno / zamítnuto</dt><dd>Vaše rozhodnutí. Zamítnutý návrh se znovu nenavrhuje. Každé rozhodnutí se zapíše do časové osy.</dd>
+      <dt>Citace a zdroj</dt><dd>Přesný text zprávy, ze které návrh vznikl. „Otevřít celou konverzaci“ ukáže kontext. Když zdroj smažete, zmizí i jeho obsah.</dd>
+      <dt>Původ</dt><dd>Kdo návrh vyrobil: „dodaná extrakce – autor neuveden“ (přišla s daty), model (jen je-li zaznamenán), systém (z podobnosti) nebo ručně.</dd>
+      <dt>Téma</dt><dd>Opakující se okruh, ke kterému návrhy patří. Jedno téma může mít zdroje z více konverzací.</dd>
+      <dt>Vazba (návrh vazby)</dt><dd>Souvislost dvou návrhů: podporuje, zpřesňuje, je v rozporu, nahrazuje, je totéž. Také vzniká jen jako návrh a čeká na rozhodnutí.</dd>
+      <dt>Kdo smí co</dt><dd>Prohlížet smí každý platný token. Potvrzovat, zamítat a měnit nastavení smí jen token s oprávněním admin. To ale neprokazuje, že to udělal konkrétní člověk.</dd>
+      <dt>Čas zprávy</dt><dd>Pokud zpráva původní čas nemá, je to čas vložení a konverzace to v názvu říká.</dd>
+    </dl>
+    <h3>Co je a není hotové</h3>
+    <p class="meta">Rozhraní je zatím jen pro čtení a rozhodování. Napojení na jednotlivé chatovací aplikace zatím není hotové: konverzace se do paměti vkládají přes API, MCP nebo importní skript. Úpravy návrhů, hromadné akce a odběr událostí pro další aplikace jsou v plánu.</p>
+  </section>
 </main>
 <script src="/ui/shell.js"></script>
 <script src="/ui/cytoscape.min.js"></script>
@@ -108,5 +204,6 @@
 <script src="/ui/conv.js"></script>
 <script src="/ui/timeline.js"></script>
 <script src="/ui/graph.js"></script>
+<script src="/ui/settings.js"></script>
 </body>
 </html>

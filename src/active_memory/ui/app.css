@@ -133,3 +133,14 @@ ul.plain { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4p
 select, input { max-width: 100%; }
 .filters label { max-width: 100%; flex-wrap: wrap; }
 .split > *, #layout > * { min-width: 0; }
+
+.welcome { max-width: 1280px; margin: 10px auto 0; border-radius: 0; }
+.settings fieldset { border: 1px solid var(--line); border-radius: 10px; background: var(--card); margin: 0 0 14px; padding: 12px 16px; display: grid; gap: 10px; }
+.settings legend { font-weight: 700; padding: 0 6px; }
+.settings label { display: grid; gap: 4px; }
+.settings .choice { display: flex; gap: 10px; align-items: flex-start; }
+.settings input[type=text], .settings input[type=password], .settings select { width: 100%; max-width: 560px; }
+.steps { padding-left: 1.3em; display: grid; gap: 6px; max-width: 70ch; }
+.glossary dt { font-weight: 700; margin-top: 10px; }
+.glossary dd { margin: 2px 0 0; max-width: 70ch; }
+#settings-result.error { background: var(--no-bg); color: var(--no); }

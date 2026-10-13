@@ -128,6 +128,21 @@ Potvrdit/Zamítnout jsou pak zablokována. Demo používá fiktivní konverzace 
 (žádné volání modelu) a kandidáty nechá nerozhodnuté; opakované spuštění nic nepřidá.
 Pro read-only pohled: `uv run active-memory init --client reader --permissions read`.
 
+### Nastavení modelu (LLM)
+
+| Endpoint | Oprávnění | Poznámka |
+|---|---|---|
+| GET `/v1/settings` | admin | aktuální nastavení poskytovatelů; klíče se nikdy nevrací, jen `secrets: {…: true/false}` |
+| PUT `/v1/settings/llm` | admin | částečná změna (chybějící pole beze změny, prázdný klíč `""` ho smaže); neplatná změna nezmění nic a vrátí důvod (422) |
+| POST `/v1/settings/llm/test` | admin | jedno krátké volání poskytovatele s vymyšleným textem (`target`: `model` nebo `embedding`); vrací jen stav, ne tělo odpovědi |
+
+Měnit lze: režim extrakce, souhlas s voláním modelu, adresu/model/klíč poskytovatele, embeddingy, hledání podobností, posuzování vazeb
+a automatické návrhy. Backend, Neo4j, Graphiti a scope zůstávají nastavením nasazení. Pravidla jsou stejná jako u prostředí
+(model vyžaduje výslovný souhlas a klíč). Hodnoty se ukládají do `data/settings.override.json` (klíče v čitelné podobě, soubor
+má omezená práva, ale není šifrovaný) a při startu přepisují prostředí. Změna se zapíše do provozního auditu (názvy polí, ne hodnoty).
+Adresa musí být http(s), bez přihlašovacích údajů a ne link-local. Poskytovatel Gemini a Mistral se zadává přes jejich rozhraní kompatibilní
+s OpenAI (předvolby v UI); jejich podpora strukturovaného výstupu a kvalita češtiny **nejsou ověřeny**.
+
 ### Import vlastních konverzací
 
 `scripts/import_chats.py chats.json` nahraje konverzace z lokálního JSON souboru (formát je v záhlaví skriptu;

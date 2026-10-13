@@ -26,6 +26,7 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/conv.js", "javascript"),
             ("/ui/timeline.js", "javascript"),
             ("/ui/graph.js", "javascript"),
+            ("/ui/settings.js", "javascript"),
             ("/ui/graph_logic.js", "javascript"),
             ("/ui/cytoscape.min.js", "javascript"),
         ):
@@ -112,12 +113,12 @@ def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_i
 
 def test_all_views_share_one_page_so_the_token_survives_navigation():
     html = (UI / "index.html").read_text(encoding="utf-8")
-    assert "<form" in html and html.count("<form") == 1  # one connect form for every view
-    for view in ("review", "conversations", "graph", "map", "timeline"):
+    assert html.count('id="connect"') == 1  # one connect form for every view
+    for view in ("review", "conversations", "graph", "map", "timeline", "settings", "help"):
         assert f'data-view="{view}"' in html
     # Views never navigate away: no links between pages, so nothing forces a reconnect.
     assert "<a " not in html
-    for name in ("app.js", "review.js", "conv.js", "timeline.js", "graph.js"):
+    for name in ("app.js", "review.js", "conv.js", "timeline.js", "graph.js", "settings.js"):
         code = (UI / name).read_text(encoding="utf-8")
         assert "fetch(" not in code and 'getElementById("token")' not in code, name
 
@@ -129,3 +130,15 @@ def test_vendored_graph_library_is_pinned_licensed_and_not_loaded_from_a_cdn():
     library = (UI / "cytoscape.min.js").read_text(encoding="utf-8")
     assert "Cytoscape Consortium" in library and "eval(" not in library
     assert "new Function" not in library  # works under script-src 'self' without unsafe-eval
+
+
+def test_settings_page_never_prefills_or_stores_secrets_and_changes_only_through_the_api():
+    code = (UI / "settings.js").read_text(encoding="utf-8")
+    assert set(re.findall(r'call\("(POST|PUT|PATCH|DELETE)"', code)) == {"POST", "PUT"}
+    assert '"/v1/settings/llm"' in code and '"/v1/settings/llm/test"' in code
+    # keys are cleared after every load and never copied from the server's answer
+    assert 'value = ""' in code and "api_key.value =" not in code.replace(
+        '$("s-model_api_key").value = ""', ""
+    )
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    assert html.count('type="password"') == 3  # token + two write-only keys

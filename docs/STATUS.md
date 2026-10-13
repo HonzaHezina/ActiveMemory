@@ -27,6 +27,7 @@ Dříve: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokáln�
 | Deterministická konsolidace counts/activity | implementováno |
 | Autonomní dreaming/semantic clustering | backlog AM-005; není hotové |
 | Kontrakt událostí v1 nad provozním auditem, `GET /v1/events`, MCP `memory_list_events` | implementováno; append-only přes službu + SQLite triggery; **graf a SQLite nejsou atomické** (viz EVENTS.md) |
+| Nastavení modelu v UI (`/v1/settings`, pohled Nastavení), nápověda a uvítání | implementováno: admin, klíče write-only, souhlas s odesláním, test spojení s vymyšleným textem, perzistence; ověřeno testy a v headless Chrome proti **falešnému** poskytovateli; **skutečný Gemini/Mistral nezkoušen**, kvalita extrakce na češtině neměřena |
 | Pohled Graf (Cytoscape.js 3.30.2, MIT, přibalený v `ui/`, bez CDN) | implementováno: jedna konverzace nebo téma, max. 60 uzlů, kandidáti čárkovaně; ověřeno v headless Chrome; vzhled neposouzen uživatelem; u velkého grafu jen zkrácený výběr |
 | Jednostránkové UI s menu (Konverzace jako výchozí, Ke schválení, Graf, Témata, Návrhy vazeb, Časová osa) a propojením konverzace ↔ návrh ↔ mapa | implementováno; testy API, Node testy logiky, e2e v jsdom (přepínání pohledů, propojení, rozhodnutí); čtení konverzací je O(N) nad projekcí; **uživatelsky zkoušeno jen ručně v jednom prohlížeči, bez systematického testu** |
 | Původ návrhu (dodaná extrakce / model / systém / ruční) | zaznamenán od zavedení auditu; starší kandidáti mají jen `candidate.snapshot` s neznámým původem |

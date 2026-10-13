@@ -15,7 +15,7 @@ from pydantic import ValidationError
 
 from .engine import build_context, public_node, search
 from .journal import Conflict
-from .models import LinkInput, Message, Query, Review, utcnow
+from .models import LinkInput, LLMSettingsUpdate, Message, ProviderTest, Query, Review, utcnow
 from .service import AuditGap, MemoryService
 from .settings import Settings
 from .similarity import clusters
@@ -101,6 +101,7 @@ def create_app(settings=None):
         "timeline.js": ("timeline.js", "text/javascript; charset=utf-8"),
         "app.css": ("app.css", "text/css; charset=utf-8"),
         "graph.js": ("graph.js", "text/javascript; charset=utf-8"),
+        "settings.js": ("settings.js", "text/javascript; charset=utf-8"),
         "graph_logic.js": ("graph_logic.js", "text/javascript; charset=utf-8"),
         "cytoscape.min.js": ("cytoscape.min.js", "text/javascript; charset=utf-8"),
         "cytoscape.LICENSE": ("cytoscape.LICENSE", "text/plain; charset=utf-8"),
@@ -252,6 +253,19 @@ def create_app(settings=None):
     @app.get("/v1/candidates/{kind}/{item_id}")
     def candidate(kind: Literal["node", "link"], item_id: str, client=Depends(read)):
         return service.candidate(kind, item_id)
+
+    @app.get("/v1/settings")
+    def settings_view(client=Depends(admin)):
+        """Effective provider configuration. API keys are never returned, only whether they are set."""
+        return service.settings_view()
+
+    @app.put("/v1/settings/llm")
+    async def configure_llm(request: LLMSettingsUpdate, client=Depends(admin)):
+        return await service.configure(request.model_dump(exclude_none=True), client["id"])
+
+    @app.post("/v1/settings/llm/test")
+    async def test_llm(request: ProviderTest, client=Depends(admin)):
+        return await service.test_provider(request.target, client["id"])
 
     @app.get("/v1/conversations")
     def conversations(

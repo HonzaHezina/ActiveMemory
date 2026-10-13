@@ -1,6 +1,9 @@
 import hashlib
+import ipaddress
 import json
+import os
 from pathlib import Path
+from urllib.parse import urlparse
 
 from pydantic import Field, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
@@ -99,3 +102,60 @@ class Settings(BaseSettings):
             if not set(client.get("permissions", [])) <= {"read", "write", "admin"}:
                 raise ValueError("unknown client permission")
         return clients
+
+
+# Fields an admin may change at runtime from the UI. Everything else (backend, scope, Neo4j,
+# Graphiti, listening address) stays deployment configuration. Secrets are write-only.
+RUNTIME_FIELDS = (
+    "extraction_mode",
+    "allow_model_calls",
+    "model_base_url",
+    "model_name",
+    "model_api_key",
+    "embedding_base_url",
+    "embedding_model",
+    "embedding_dim",
+    "embedding_api_key",
+    "similarity_mode",
+    "judge_enabled",
+    "max_judge_calls",
+    "auto_propose",
+)
+SECRET_FIELDS = ("model_api_key", "embedding_api_key")
+OVERRIDE_FILE = "settings.override.json"
+
+
+def check_endpoint(url):
+    """Provider URLs must be http(s) with a host, no embedded credentials, not link-local."""
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+        raise ValueError("the provider address must be a full http(s) URL")
+    if parsed.username or parsed.password:
+        raise ValueError("do not put credentials into the provider address")
+    try:
+        if ipaddress.ip_address(parsed.hostname).is_link_local:
+            raise ValueError("link-local addresses are not allowed as provider")
+    except ValueError as error:
+        if "link-local" in str(error):
+            raise
+    return url
+
+
+def load_overrides(data_dir):
+    path = Path(data_dir) / OVERRIDE_FILE
+    if not path.exists():
+        return {}
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return {k: v for k, v in data.items() if k in RUNTIME_FIELDS}
+
+
+def save_overrides(data_dir, values):
+    path = Path(data_dir) / OVERRIDE_FILE
+    body = {k: values[k] for k in RUNTIME_FIELDS if k in values}
+    temporary = path.with_suffix(".tmp")
+    temporary.write_text(json.dumps(body, ensure_ascii=False, indent=1), encoding="utf-8")
+    try:
+        os.chmod(temporary, 0o600)  # best effort; the data directory holds all memory anyway
+    except OSError:
+        pass
+    os.replace(temporary, path)
