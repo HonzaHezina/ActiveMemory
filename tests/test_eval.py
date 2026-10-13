@@ -77,3 +77,28 @@ def test_evaluation_is_deterministic(dataset, report):
     again = evaluate(dataset)
     for key in ("counts", "retrieval", "linking", "invariants"):
         assert again[key] == report[key]
+
+
+@pytest.fixture(scope="module")
+def proposal_report(dataset):
+    return evaluate(dataset, proposals=True)
+
+
+def test_proposals_are_sourced_candidates_and_do_not_regress(proposal_report):
+    baseline = json.loads((EVALS / "baseline_cs_v1_proposals.json").read_text(encoding="utf-8"))
+    now, before = proposal_report["proposals"], baseline["proposals"]
+    assert now["all_candidate"] and now["all_sourced"]
+    assert now["false_proposals_on_distinct"] <= before["false_proposals_on_distinct"] == 0
+    assert now["wrong"] <= before["wrong"]
+    assert now["recall"] >= before["recall"]
+    assert now["precision_on_judged"] >= before["precision_on_judged"]
+    # Proposals never change what the pipeline stored from the sources.
+    assert proposal_report["counts"]["nodes"] == baseline["counts"]["nodes"]
+    assert proposal_report["invariants"]["machine_nodes_not_candidate"] == 0
+    assert proposal_report["retrieval"] == baseline["retrieval"]
+
+
+def test_oracle_review_effect_is_measured_after_the_unreviewed_numbers(proposal_report):
+    after = proposal_report["retrieval_after_oracle_review"]["overall"]
+    before = proposal_report["retrieval"]["overall"]
+    assert after["recall"] >= before["recall"] and after["violations"] <= before["violations"] + 1

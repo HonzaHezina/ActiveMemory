@@ -48,6 +48,63 @@ def test_native_neo4j_roundtrip(tmp_path):
 
 
 @pytest.mark.integration
+@pytest.mark.skipif(os.environ.get("MEMORY_TEST_NEO4J") != "true", reason="live Neo4j opt-in")
+def test_native_neo4j_persists_proposals_and_tombstones(tmp_path):
+    from active_memory.graph import Neo4jGraph
+
+    scope = "personal:test-" + uuid4().hex
+    settings = Settings(
+        _env_file=None,
+        backend="neo4j",
+        scope=scope,
+        data_dir=tmp_path,
+        clients_file=tmp_path / "none.json",
+        api_key=OWNER_KEY,
+        neo4j_uri=os.environ.get("MEMORY_TEST_NEO4J_URI", "bolt://localhost:7687"),
+        neo4j_password=os.environ["MEMORY_TEST_NEO4J_PASSWORD"],
+        worker_enabled=False,
+    )
+    app = create_app(settings)
+    try:
+        with TestClient(app, headers={"Authorization": f"Bearer {OWNER_KEY}"}) as client:
+            for mid, chat, text, quote in (
+                (
+                    "1",
+                    "a",
+                    "Chci zachovat lidskou kontrolu nad výsledkem.",
+                    "zachovat lidskou kontrolu",
+                ),
+                (
+                    "2",
+                    "b",
+                    "Důležitá je lidská kontrola nad každým výsledkem.",
+                    "lidská kontrola nad každým výsledkem",
+                ),
+            ):
+                body = message(message_id=mid, conversation=chat, content=text)
+                body["extraction"]["items"][0].update(
+                    kind="Thought", label=quote, summary=text, quote=quote, themes=[]
+                )
+                client.post("/v1/episodes", json=body)
+                client.portal.call(app.state.memory.process_one)
+            report = client.post("/v1/maintenance/propose").json()
+            assert report["proposed"] == 1
+            (edge_id,) = report["edges"]
+            client.post(f"/v1/links/{edge_id}/review", json={"status": "rejected"})
+        graph = Neo4jGraph(settings)
+        try:
+            stored = graph.load()["edges"][edge_id]
+        finally:
+            graph.close()
+        assert stored["relation"] == "ALIAS_OF" and stored["status"] == "rejected"
+        assert stored["origin"] == "proposal" and len(stored["evidence"]) == 2
+    finally:
+        graph = Neo4jGraph(settings)
+        graph.save({"scope": scope, "nodes": {}, "edges": {}})
+        graph.close()
+
+
+@pytest.mark.integration
 @pytest.mark.skipif(os.environ.get("MEMORY_TEST_GRAPHITI") != "true", reason="paid model opt-in")
 def test_graphiti_live_provenance_search_and_delete(tmp_path):
     settings = Settings(

@@ -47,3 +47,20 @@ Uloženo v `evals/baseline_cs_v1.json`; test selže, pokud se kterákoli z těch
 3. Lexikální shoda bez stopwords vrací nesouvisející silné uzly.
 
 Žádné z čísel není cílová hodnota kvality; slouží jako spodní mez proti regresi.
+
+## AM-003: návrhy vazeb
+
+`scripts/run_eval.py --proposals` po ingestu spustí generátor návrhů a vyhodnotí je proti 25 gold párům
+(`evals/baseline_cs_v1_proposals.json`). Metriky: `proposals.precision_on_judged`, `recall` (kolik z 17 gold
+vazeb se našlo ve správném typu a směru), `false_proposals_on_distinct` (návrh pro pár, který je v gold
+označen jako odlišný), `all_candidate`, `all_sourced`. Sekce `retrieval_after_oracle_review` ukazuje hledání
+poté, co „vlastník“ potvrdí gold-správné a odmítne chybné návrhy (jen v evalu; ukazuje horní mez přínosu).
+
+Offline baseline (lexikální + grafové signály): 2 návrhy (ALIAS_OF pro dvojici „Vidět původ informace“ /
+„Původní věta a datum“, SUPERSEDES pro PostgreSQL→Neo4j z navazujících intervalů), oba správné, 0 návrhů
+pro odlišné páry, recall 2/17 = 0,12. Parafráze bez sdílených slov (např. „Lidská kontrola“ ↔
+„Poslední slovo člověka“) se bez embeddingů nenajdou – to je očekávané a změřené.
+
+Se skutečným modelem: `scripts/run_eval.py --proposals --embeddings --judge` (MEMORY_EMBEDDING_*,
+MEMORY_MODEL_*; posílá syntetické věty providerovi). CI job `graphiti-live` to spouští ručně/týdně a ukládá
+`eval-report.json`. **Toto měření dosud neproběhlo**, prahy proto nejsou kalibrované.

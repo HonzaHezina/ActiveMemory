@@ -116,3 +116,118 @@ def test_llm_extraction_requires_supported_quotes(monkeypatch, quote, valid):
     else:
         with pytest.raises(ValueError, match="unsupported evidence quote"):
             asyncio.run(coro)
+
+
+def _fake_http(monkeypatch, handler):
+    import httpx
+
+    class FakeClient:
+        def __init__(self, **kwargs):
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *args):
+            pass
+
+        async def post(self, url, **kwargs):
+            return httpx.Response(
+                200, request=httpx.Request("POST", url), json=handler(url, kwargs["json"])
+            )
+
+    monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
+
+
+def test_embeddings_client_batches_orders_and_counts_usage(monkeypatch):
+    from active_memory.providers import OpenAIEmbeddings
+
+    calls = []
+
+    def handler(url, body):
+        calls.append((url, len(body["input"])))
+        data = [{"index": i, "embedding": [float(i), 1.0]} for i in range(len(body["input"]))]
+        return {"data": data[::-1], "usage": {"total_tokens": 5}}
+
+    _fake_http(monkeypatch, handler)
+    settings = Settings(
+        _env_file=None,
+        similarity_mode="embedding",
+        allow_model_calls=True,
+        embedding_api_key="fake-key",
+    )
+    embedder = OpenAIEmbeddings(settings)
+    vectors = asyncio.run(embedder.embed([f"t{i}" for i in range(70)]))
+    assert [c[1] for c in calls] == [64, 6] and calls[0][0].endswith("/embeddings")
+    assert vectors[3] == [3.0, 1.0] and len(vectors) == 70
+    assert embedder.usage == {"calls": 2, "texts": 70, "tokens": 10}
+
+
+@pytest.mark.parametrize(
+    "answer,valid",
+    [
+        (
+            {
+                "relation": "CONTRADICTS",
+                "reason": "opposite",
+                "quote_a": "chci kontrolu",
+                "quote_b": "vše automaticky",
+            },
+            True,
+        ),
+        (
+            {
+                "relation": "CONTRADICTS",
+                "reason": "opposite",
+                "quote_a": "invented",
+                "quote_b": "vše automaticky",
+            },
+            False,
+        ),
+        ({"relation": "CONTRADICTS", "reason": "opposite"}, False),
+        ({"relation": "UNRELATED", "reason": "nothing in common"}, True),
+        ({"relation": "MERGE", "reason": "x"}, False),
+    ],
+)
+def test_relation_judge_requires_quotes_from_shown_evidence(monkeypatch, answer, valid):
+    import json
+
+    from active_memory.providers import LLMRelationJudge
+
+    seen = {}
+
+    def handler(url, body):
+        seen["prompt"] = body["messages"][0]["content"]
+        return {
+            "choices": [{"message": {"content": json.dumps(answer)}}],
+            "usage": {"prompt_tokens": 9, "completion_tokens": 4},
+        }
+
+    _fake_http(monkeypatch, handler)
+    settings = Settings(
+        _env_file=None, judge_enabled=True, allow_model_calls=True, model_api_key="fake-key"
+    )
+    judge = LLMRelationJudge(settings)
+    node = {"kind": "Thought", "label": "l", "summary": "s"}
+    a = [
+        {"quote": "Chci kontrolu".lower() + " nad vším", "occurred_at": "2026-01-01T00:00:00+00:00"}
+    ]
+    b = [{"quote": "chci vše automaticky", "occurred_at": "2026-01-02T00:00:00+00:00"}]
+    coro = judge.judge(node, node, a, b)
+    if valid:
+        assert asyncio.run(coro)["relation"] == answer["relation"]
+        assert judge.usage["prompt_tokens"] == 9
+    else:
+        with pytest.raises(ValueError):
+            asyncio.run(coro)
+    assert "untrusted" in seen["prompt"]
+
+
+def test_similarity_settings_require_explicit_model_authorization():
+    with pytest.raises(ValueError, match="ALLOW_MODEL_CALLS"):
+        Settings(_env_file=None, similarity_mode="embedding", embedding_api_key="k")
+    with pytest.raises(ValueError, match="embedding_api_key"):
+        Settings(_env_file=None, similarity_mode="embedding", allow_model_calls=True)
+    with pytest.raises(ValueError, match="model_api_key"):
+        Settings(_env_file=None, judge_enabled=True, allow_model_calls=True)
+    assert Settings(_env_file=None).effective_threshold == 0.5

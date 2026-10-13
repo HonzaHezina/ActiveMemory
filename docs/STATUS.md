@@ -1,5 +1,7 @@
 # Stav dodaného základu · 2026-10-13
 
+Poslední milníky: AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
+
 ## Implementace
 
 | Oblast | Stav |
@@ -9,10 +11,14 @@
 | Raw zdroje a idempotence, queue/retry, audit, export | implementováno |
 | Reference persistent graf | implementováno, behavior testy |
 | Neo4j native active-map adapter | implementováno; živý Neo4j roundtrip prošel v GitHub Actions |
-| Graphiti adapter 0.30.2, oddělený model/embedder | implementováno; constructor/contract test, bez reálné inference |
+| Graphiti adapter 0.30.2, oddělený model/embedder | implementováno; constructor/contract test; stack test (ingest→UUID→search→restart→delete/rebuild) napsán, **nespuštěn s modelem** |
+| Stack integrační test (Neo4j, bez modelu) | prošel lokálně proti reálnému API procesu + Neo4j 5.26.31; Compose varianta jen v CI (zatím nespuštěna) |
 | User LLM structured extraction, přesné citace | implementováno; lokální mocked failure/success testy; kvalita modelu neměřena |
 | Theme recurrence, exact identity, activity/decay | implementováno |
-| Parafráze/latentní témata a automatické link proposals | backlog AM-003 |
+| Pevný CZ eval dataset + baseline (48 scénářů) | implementováno (AM-002); LLM režim evalu nespuštěn |
+| Návrhy ALIAS_OF/SUPERSEDES, lexikální + grafové signály, candidate se zdroji | implementováno (AM-003); offline baseline: 2 návrhy, oba správné, recall 2/17 |
+| Návrhy přes embeddingy a LLM soudce (SUPPORTS/REFINES/CONTRADICTS) | implementováno za `similarity_mode=embedding` / `judge_enabled`; testováno jen s fake embedderem/soudcem a mockem HTTP; **reálná kvalita neměřena** |
+| Potvrzený alias: seskupení (`clusters`) bez slučování uzlů, vratné | implementováno, testováno |
 | Review kandidátů a explicitní temporal intervals | implementováno, current/historical test |
 | SUPPORTS/REFINES/CONTRADICTS/SUPERSEDES | explicitní link API; automatické odvozování a interval closure v backlogu |
 | Kontext s reviewed sources a budgetem znaků | implementováno; zatím lexical + 1-hop active graph |
@@ -24,6 +30,16 @@
 | Originální chatbot export connectors | backlog AM-010 |
 | Docker/Compose/Coolify/CI | Compose validace a image build prošly v CI; skutečný Coolify deploy zatím neproveden |
 | Enterprise IAM/multi-tenant/security hardening | mimo základ; IAM interface/backlog zachováno |
+
+## Rozdíl mezi implementací a cílem (2026-10-13)
+
+Cíl: aktivní myšlenková mapa, kde se stejná myšlenka z různých chatů spojí i při jiném vyjádření, s dohledatelným zdrojem a lidským schválením. Dnes:
+
+- Offline (bez modelu) se spojí jen téměř shodná formulace; parafráze vyžadují embeddingy a judge, které jsou implementované, ale na českých datech neprošly měřením (chybí klíče). Práh 0.6 pro embeddingy není kalibrován.
+- Automatické typy SUPPORTS/REFINES/CONTRADICTS vznikají jen přes judge; SUPERSEDES i bez modelu z přesně navazujících intervalů.
+- Kontext je lexical + 1-hop; neobsahuje důvod výběru ani Graphiti fakta (AM-011). `as_of` filtruje jen platnost tvrzení, ne to, co už uživatel v dané době napsal (14 takových položek v baseline).
+- Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). UI mapy chybí (AM-004).
+- Graphiti 0.30.2 s reálným modelem nebyl dosud spuštěn.
 
 ## Praktické limity
 

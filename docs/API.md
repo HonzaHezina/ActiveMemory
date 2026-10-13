@@ -12,10 +12,12 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 | GET `/v1/episodes/{id}` | read | přesná původní zpráva |
 | POST `/v1/search` | read | active items; volitelně Graphiti inferred facts |
 | POST `/v1/context` | read | vybraný reviewed kontext s citacemi |
-| GET `/v1/map?limit=500` | read | uzly a vazby; počet a truncated flag |
+| GET `/v1/map?limit=500` | read | uzly, vazby a `clusters` (skupiny uzlů spojené potvrzeným ALIAS_OF); počet a truncated flag |
 | POST `/v1/nodes/{id}/review` | admin | confirmed/rejected |
 | POST `/v1/links` | admin | kandidát vazby s citací ve zdroji |
-| POST `/v1/links/{id}/review` | admin | review vazby |
+| POST `/v1/links/{id}/review` | admin | review vazby (confirmed/rejected; odmítnutý návrh se znovu nenavrhne) |
+| GET `/v1/links?status=&relation=` | read | vazby s krátkým popisem konců, citacemi a u návrhů `proposal` (skóre, signály, důvod, metoda) |
+| POST `/v1/maintenance/propose` | admin | AM-003: vygeneruje candidate návrhy ALIAS_OF/SUPERSEDES (a s judge SUPPORTS/REFINES/CONTRADICTS); nic nepotvrzuje ani neslučuje |
 | GET `/v1/jobs` | read | posledních 100 jobs, status a redigovaná chyba |
 | POST `/v1/jobs/{episode_id}/retry` | admin | znovu pouze failed job |
 | POST `/v1/maintenance/consolidate` | admin | přepočet četnosti a aktivity |

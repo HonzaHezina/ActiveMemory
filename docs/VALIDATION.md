@@ -52,21 +52,21 @@ Graphiti test nav√≠c pot≈ôebuje `MEMORY_TEST_GRAPHITI=true`, `MEMORY_TEST_MODEL_
 `MEMORY_TEST_EMBEDDING_KEY` a p≈ô√≠padnƒõ TEST_MODEL_URL/TEST_EMBEDDING_URL.
 Pracuje se samostatn√Ωm n√°hodn√Ωm test scope. M≈Ø≈æe vyvolat modelov√© n√°klady, proto nebƒõ≈æ√≠ implicitnƒõ.
 
-## BÏh 2026-10-13 (druh˝, Windows pracovnÌ stanice)
+## Bƒõh 2026-10-13 (druh√Ω, Windows pracovn√≠ stanice)
 
-Bez Dockeru a bez modelov˝ch klÌË˘. Neo4j 5.26.31 Community byl spuötÏn lok·lnÏ z ofici·lnÌho zipu (JDK 21).
+Bez Dockeru a bez modelov√Ωch kl√≠ƒç≈Ø. Neo4j 5.26.31 Community byl spu≈°tƒõn lok√°lnƒõ z ofici√°ln√≠ho zipu (JDK 21).
 
-| Kontrola | V˝sledek |
+| Kontrola | V√Ωsledek |
 |---|---|
-| uv sync --frozen, ruff, ruff format, pytest | proöly; 19 passed, 4 skipped (opt-in) |
-| Re·ln˝ `active-memory serve` + `init` + `scripts/demo.py` | proölo: 3 epizody, 3 uzly, 2 vazby, kontext 3 poloûky |
-| `tests/test_live_graph.py -k native` proti lok·lnÌmu Neo4j | 1 passed |
-| `tests/test_stack_integration.py` (bez modelu, API subprocess + Neo4j): ingest, hotovÈ joby, zdrojovÈ UUID v mapÏ, restart API, restart, smaz·nÌ, purge z Neo4j | 1 passed |
+| uv sync --frozen, ruff, ruff format, pytest | pro≈°ly; 19 passed, 4 skipped (opt-in) |
+| Re√°ln√Ω `active-memory serve` + `init` + `scripts/demo.py` | pro≈°lo: 3 epizody, 3 uzly, 2 vazby, kontext 3 polo≈æky |
+| `tests/test_live_graph.py -k native` proti lok√°ln√≠mu Neo4j | 1 passed |
+| `tests/test_stack_integration.py` (bez modelu, API subprocess + Neo4j): ingest, hotov√© joby, zdrojov√© UUID v mapƒõ, restart API, restart, smaz√°n√≠, purge z Neo4j | 1 passed |
 
-**NeovÏ¯eno:** Docker Compose varianta stack testu (`MEMORY_TEST_DOCKER=true`, CI job `docker-stack`;
-override pouûÌv· `!override`, tedy Compose >= 2.24) a Graphiti varianta
-(`MEMORY_TEST_DOCKER_GRAPHITI=true`, CI job `graphiti-live`) ñ chybÌ Docker daemon resp. modelovÈ klÌËe.
-Zb˝vajÌcÌ krok: nastavit repo secrets `MEMORY_TEST_MODEL_KEY`, `MEMORY_TEST_EMBEDDING_KEY`
-(volitelnÏ vars `MEMORY_TEST_MODEL_URL`/`_NAME`, `MEMORY_TEST_EMBEDDING_URL`/`_MODEL`/`_DIM`) a spustit
-workflow ruËnÏ s `graphiti_live=true`. Graphiti-only aserce (Episodic UUID, scoped facts, cizÌ group_id
-p¯eûije rebuild, û·dn˝ text smazanÈho zdroje v odvozenÈm grafu) nebyly dosud vykon·ny.
+**Neovƒõ≈ôeno:** Docker Compose varianta stack testu (`MEMORY_TEST_DOCKER=true`, CI job `docker-stack`;
+override pou≈æ√≠v√° `!override`, tedy Compose >= 2.24) a Graphiti varianta
+(`MEMORY_TEST_DOCKER_GRAPHITI=true`, CI job `graphiti-live`) ‚Äì chyb√≠ Docker daemon resp. modelov√© kl√≠ƒçe.
+Zb√Ωvaj√≠c√≠ krok: nastavit repo secrets `MEMORY_TEST_MODEL_KEY`, `MEMORY_TEST_EMBEDDING_KEY`
+(volitelnƒõ vars `MEMORY_TEST_MODEL_URL`/`_NAME`, `MEMORY_TEST_EMBEDDING_URL`/`_MODEL`/`_DIM`) a spustit
+workflow ruƒçnƒõ s `graphiti_live=true`. Graphiti-only aserce (Episodic UUID, scoped facts, ciz√≠ group_id
+p≈ôe≈æije rebuild, ≈æ√°dn√Ω text smazan√©ho zdroje v odvozen√©m grafu) nebyly dosud vykon√°ny.

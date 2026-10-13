@@ -20,6 +20,7 @@ from .engine import build_context, normalize, search
 from .models import Message, Query
 from .service import MemoryService
 from .settings import Settings
+from .similarity import clusters
 
 OWNER_ID = "eval"
 KEY_PLACEHOLDER = "eval-only-key-not-used-for-auth-0000"
@@ -116,7 +117,7 @@ def gold_messages(data, concepts=(), themes=()):
     return found
 
 
-def evaluate(data, workdir=None, extraction="gold", settings_overrides=None):
+def evaluate(data, workdir=None, extraction="gold", settings_overrides=None, proposals=False):
     """Return a metrics report. ``extraction``: ``gold`` (provided labels) or ``llm``."""
     with tempfile.TemporaryDirectory() as temporary:
         directory = Path(workdir) if workdir else Path(temporary)
@@ -131,10 +132,10 @@ def evaluate(data, workdir=None, extraction="gold", settings_overrides=None):
             ),
             **(settings_overrides or {}),
         )
-        return asyncio.run(_evaluate(data, settings, extraction))
+        return asyncio.run(_evaluate(data, settings, extraction, proposals))
 
 
-async def _evaluate(data, settings, extraction):
+async def _evaluate(data, settings, extraction, proposals):
     service = MemoryService(settings)
     await service.initialize()
     try:
@@ -171,6 +172,16 @@ async def _evaluate(data, settings, extraction):
         )
         report["linking"] = evaluate_pairs(data, service, episode_of)
         report["invariants"] = evaluate_invariants(data, service)
+        if proposals:
+            started = time.perf_counter()
+            report["propose_run"] = await service._propose()
+            report["latency"]["propose"] = {
+                "total_ms": round((time.perf_counter() - started) * 1000, 2)
+            }
+            report["proposals"] = evaluate_proposals(data, service, episode_of)
+            oracle_review(data, service, episode_of)
+            report["retrieval_after_oracle_review"], _ = evaluate_queries(data, service, episode_of)
+            report["clusters_after_oracle_review"] = len(clusters(service.state))
         return report
     finally:
         await service.close()
@@ -375,3 +386,89 @@ def extraction_quality(data, service):
         "extracted_evidence": extracted,
         "spurious_on_empty_gold": spurious,
     }
+
+
+def pair_judgments(data, service, episode_of):
+    """{frozenset(node ids): judgment} for gold pairs both of whose sides exist."""
+    found = {}
+    for pair in data["pairs"]:
+        a = system_node(data, service, episode_of, pair["a"])
+        b = system_node(data, service, episode_of, pair["b"])
+        if a and b and a["id"] != b["id"]:
+            found[frozenset((a["id"], b["id"]))] = (pair["judgment"], a["id"], b["id"])
+    return found
+
+
+def proposal_verdict(edge, judged):
+    """correct / wrong / unjudged for one proposal edge against the gold pair judgments."""
+    entry = judged.get(frozenset((edge["source_id"], edge["target_id"])))
+    if entry is None:
+        return "unjudged"
+    judgment, a_id, b_id = entry
+    if judgment.startswith("same_"):
+        return "correct" if edge["relation"] == "ALIAS_OF" else "wrong"
+    if judgment == "distinct":
+        return "wrong"
+    if edge["relation"] != judgment:
+        return "wrong"
+    forward = (edge["source_id"], edge["target_id"]) == (a_id, b_id)
+    return "correct" if forward or judgment == "CONTRADICTS" else "wrong"
+
+
+def evaluate_proposals(data, service, episode_of):
+    judged = pair_judgments(data, service, episode_of)
+    edges = [e for e in service.state["edges"].values() if e.get("origin") == "proposal"]
+    verdicts = [proposal_verdict(e, judged) for e in edges]
+    gold_links = [j for j in judged.values() if j[0] != "distinct"]
+    recovered = sum(
+        any(
+            proposal_verdict(e, judged) == "correct"
+            and frozenset((e["source_id"], e["target_id"])) == frozenset((a, b))
+            for e in edges
+        )
+        for _, a, b in gold_links
+    )
+    sourced = sum(
+        len(e["evidence"]) >= 2
+        and all(
+            (src := service.journal.get(x["episode_id"])) and x["quote"] in src["content"]
+            for x in e["evidence"]
+        )
+        for e in edges
+    )
+    judged_total = verdicts.count("correct") + verdicts.count("wrong")
+    return {
+        "total": len(edges),
+        "by_relation": {
+            r: sum(e["relation"] == r for e in edges)
+            for r in sorted({e["relation"] for e in edges})
+        },
+        "all_candidate": all(e["status"] == "candidate" for e in edges),
+        "all_sourced": sourced == len(edges),
+        "correct": verdicts.count("correct"),
+        "wrong": verdicts.count("wrong"),
+        "unjudged": verdicts.count("unjudged"),
+        "precision_on_judged": round(verdicts.count("correct") / judged_total, 4)
+        if judged_total
+        else None,
+        "gold_links": len(gold_links),
+        "gold_links_recovered": recovered,
+        "recall": round(recovered / len(gold_links), 4) if gold_links else None,
+        "false_proposals_on_distinct": sum(
+            judged[frozenset((e["source_id"], e["target_id"]))][0] == "distinct"
+            for e in edges
+            if frozenset((e["source_id"], e["target_id"])) in judged
+        ),
+    }
+
+
+def oracle_review(data, service, episode_of):
+    """Stand-in for the owner: confirm gold-correct proposals, reject the wrong ones (eval only)."""
+    judged = pair_judgments(data, service, episode_of)
+    for edge in service.state["edges"].values():
+        if edge.get("origin") == "proposal":
+            verdict = proposal_verdict(edge, judged)
+            if verdict == "correct":
+                edge["status"] = "confirmed"
+            elif verdict == "wrong":
+                edge["status"] = "rejected"

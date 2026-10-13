@@ -9,11 +9,12 @@ from fastapi.responses import JSONResponse
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
 
-from .engine import build_context, search
+from .engine import build_context, public_node, search
 from .journal import Conflict
 from .models import LinkInput, Message, Query, Review, utcnow
 from .service import MemoryService
 from .settings import Settings
+from .similarity import clusters
 
 
 def create_app(settings=None):
@@ -101,7 +102,7 @@ def create_app(settings=None):
 
     @app.post("/v1/search")
     async def retrieve(request: Query, client=Depends(read)):
-        items = search(service.state, request)
+        items = [public_node(n) for n in search(service.state, request)]
         facts = []
         if request.include_candidates and service.graphiti:
             try:
@@ -123,7 +124,9 @@ def create_app(settings=None):
     @app.post("/v1/context")
     def context(request: Query, client=Depends(read)):
         # Automatic context uses only reviewed active nodes by default.
-        result = build_context(search(service.state, request), request.max_chars)
+        result = build_context(
+            [public_node(n) for n in search(service.state, request)], request.max_chars
+        )
         return {
             "scope": settings.scope,
             **result,
@@ -133,7 +136,10 @@ def create_app(settings=None):
 
     @app.get("/v1/map")
     def graph(limit: int = URLQuery(default=500, ge=1, le=5000), client=Depends(read)):
-        nodes = sorted(service.state["nodes"].values(), key=lambda n: n["id"])[:limit]
+        nodes = [
+            public_node(n)
+            for n in sorted(service.state["nodes"].values(), key=lambda n: n["id"])[:limit]
+        ]
         ids = {n["id"] for n in nodes}
         edges = [
             e
@@ -144,6 +150,7 @@ def create_app(settings=None):
             "scope": settings.scope,
             "nodes": nodes,
             "edges": edges,
+            "clusters": clusters(service.state),
             "total_nodes": len(service.state["nodes"]),
             "truncated": len(nodes) < len(service.state["nodes"]),
         }
@@ -159,6 +166,39 @@ def create_app(settings=None):
     @app.post("/v1/links/{edge_id}/review")
     async def review_link(edge_id: str, request: Review, client=Depends(admin)):
         return await service.review_link(edge_id, request.status, client["id"])
+
+    @app.get("/v1/links")
+    def links(
+        status: str | None = URLQuery(default=None, pattern="^(candidate|confirmed|rejected)$"),
+        relation: str | None = URLQuery(default=None),
+        limit: int = URLQuery(default=200, ge=1, le=2000),
+        client=Depends(read),
+    ):
+        """Edges with endpoint summaries and source quotes; proposals are ranked by score."""
+        nodes = service.state["nodes"]
+        rows = []
+        for edge in service.state["edges"].values():
+            if status and edge["status"] != status or relation and edge["relation"] != relation:
+                continue
+            if edge["source_id"] not in nodes or edge["target_id"] not in nodes:
+                continue
+            ends = {
+                role: {
+                    k: nodes[edge[role + "_id"]][k]
+                    for k in ("id", "kind", "label", "summary", "status")
+                }
+                for role in ("source", "target")
+            }
+            rows.append({**edge, "source": ends["source"], "target": ends["target"]})
+        rows.sort(key=lambda r: (-r.get("proposal", {}).get("score", 0), r["id"]))
+        return {"links": rows[:limit], "total": len(rows)}
+
+    @app.post("/v1/maintenance/propose")
+    async def propose_links(client=Depends(admin)):
+        try:
+            return await service.propose_links(client["id"])
+        except Exception:
+            raise HTTPException(503, "proposal generation failed; nothing was changed") from None
 
     @app.get("/v1/jobs")
     def jobs(client=Depends(read)):
@@ -201,7 +241,10 @@ def create_app(settings=None):
                 "schema_version": 1,
                 "scope": settings.scope,
                 "episodes": episodes,
-                "active_graph": service.state,
+                "active_graph": {
+                    **service.state,
+                    "nodes": {k: public_node(v) for k, v in service.state["nodes"].items()},
+                },
             }
 
     return app

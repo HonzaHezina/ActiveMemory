@@ -343,15 +343,20 @@
       "post": {
         "summary": "Link",
         "operationId": "link_v1_links_post",
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ],
         "requestBody": {
+          "required": true,
           "content": {
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/LinkInput"
               }
             }
-          },
-          "required": true
+          }
         },
         "responses": {
           "201": {
@@ -372,12 +377,84 @@
               }
             }
           }
-        },
+        }
+      },
+      "get": {
+        "summary": "Links",
+        "description": "Edges with endpoint summaries and source quotes; proposals are ranked by score.",
+        "operationId": "links_v1_links_get",
         "security": [
           {
             "HTTPBearer": []
           }
-        ]
+        ],
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "pattern": "^(candidate|confirmed|rejected)$"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "name": "relation",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Relation"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 2000,
+              "minimum": 1,
+              "default": 200,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/v1/links/{edge_id}/review": {
@@ -430,6 +507,27 @@
             }
           }
         }
+      }
+    },
+    "/v1/maintenance/propose": {
+      "post": {
+        "summary": "Propose Links",
+        "operationId": "propose_links_v1_maintenance_propose_post",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "HTTPBearer": []
+          }
+        ]
       }
     },
     "/v1/jobs": {
@@ -809,7 +907,8 @@
           "SUPPORTS",
           "REFINES",
           "CONTRADICTS",
-          "SUPERSEDES"
+          "SUPERSEDES",
+          "ALIAS_OF"
         ],
         "title": "Relation"
       },

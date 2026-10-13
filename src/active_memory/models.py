@@ -28,6 +28,7 @@ class Relation(StrEnum):
     REFINES = "REFINES"
     CONTRADICTS = "CONTRADICTS"
     SUPERSEDES = "SUPERSEDES"
+    ALIAS_OF = "ALIAS_OF"
 
 
 class Item(Strict):
@@ -119,3 +120,13 @@ class LinkInput(Strict):
     relation: Relation
     episode_id: str
     quote: str = Field(min_length=1, max_length=4000)
+
+
+class Verdict(Strict):
+    """Judge answer for two ideas A and B; quotes must come from the evidence it was shown."""
+
+    relation: Literal["SAME", "SUPPORTS", "REFINES", "CONTRADICTS", "SUPERSEDES", "UNRELATED"]
+    direction: Literal["a_to_b", "b_to_a"] = "a_to_b"
+    reason: str = Field(min_length=1, max_length=600)
+    quote_a: str = Field(default="", max_length=4000)
+    quote_b: str = Field(default="", max_length=4000)

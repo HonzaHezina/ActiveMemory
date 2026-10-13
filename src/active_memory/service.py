@@ -5,8 +5,18 @@ import re
 from .engine import add_extraction, consolidate, identity, remove_episode
 from .graph import Neo4jGraph, ReferenceGraph
 from .journal import Journal
-from .models import Extraction, Message
-from .providers import GraphitiAdapter, LLMExtractor
+from .models import Extraction, Message, utcnow
+from .providers import GraphitiAdapter, LLMExtractor, LLMRelationJudge, OpenAIEmbeddings
+from .similarity import (
+    candidate_pairs,
+    embedding_text,
+    pair_id,
+    propose,
+    recent_evidence,
+    text_hash,
+    unit,
+    usable_vector,
+)
 
 
 class MemoryService:
@@ -22,6 +32,10 @@ class MemoryService:
         self.lock = asyncio.Lock()
         self.extractor = LLMExtractor(settings) if settings.extraction_mode == "llm" else None
         self.graphiti = GraphitiAdapter(settings) if settings.graphiti_enabled else None
+        self.embedder = (
+            OpenAIEmbeddings(settings) if settings.similarity_mode == "embedding" else None
+        )
+        self.judge = LLMRelationJudge(settings) if settings.judge_enabled else None
 
     async def initialize(self):
         if self.graphiti:
@@ -57,9 +71,16 @@ class MemoryService:
                 if self.graphiti and message.role == "user":
                     await self.graphiti.add(episode_id, message)
                 updated = copy.deepcopy(self.state)
+                before = set(updated["nodes"])
                 add_extraction(updated, episode_id, message, extraction or Extraction())
                 self.commit(updated)
                 self.journal.finish(episode_id)
+                if self.settings.auto_propose:
+                    # Best effort and separate from ingestion: a provider failure must not fail the job.
+                    try:
+                        await self._propose(before=before)
+                    except Exception as error:
+                        self.journal.audit("system", "auto_propose_failed", type(error).__name__)
             except Exception as error:
                 # Only exception class is persisted; upstream errors may contain sensitive text.
                 self.journal.finish(episode_id, type(error).__name__)
@@ -117,9 +138,79 @@ class MemoryService:
             edge = updated["edges"][edge_id]
             # A change relation is information; temporal windows remain explicit reviewed data.
             edge["status"] = status
+            if status == "rejected" and edge.get("origin") == "proposal":
+                edge["rejected_at"] = utcnow().isoformat()
             self.commit(updated)
             self.journal.audit(actor, "review_link_" + status, edge_id)
             return edge
+
+    async def propose_links(self, actor):
+        async with self.lock:
+            report = await self._propose()
+            self.journal.audit(actor, "propose_links", f"{report['proposed']}")
+            return report
+
+    async def _propose(self, before=None):
+        """Create candidate edges. ``before``: node ids already examined (only new ones are paired)."""
+        s = self.settings
+        updated = copy.deepcopy(self.state)
+        only_ids = None
+        if before is not None:
+            only_ids = set(updated["nodes"]) - before
+            if not only_ids:
+                return {"proposed": 0, "edges": [], "skipped": {}, "usage": {}}
+        vectors = {}
+        if self.embedder:
+            missing = [
+                n
+                for n in updated["nodes"].values()
+                if n["status"] != "rejected" and not usable_vector(n, self.embedder.model)
+            ]
+            if missing:
+                for node, vector in zip(
+                    missing,
+                    await self.embedder.embed([embedding_text(n) for n in missing]),
+                    strict=True,
+                ):
+                    node["embedding"] = {
+                        "model": self.embedder.model,
+                        "dim": len(vector),
+                        "text_hash": text_hash(node),
+                        "vector": unit(vector),
+                    }
+            vectors = {
+                n["id"]: usable_vector(n, self.embedder.model) for n in updated["nodes"].values()
+            }
+            vectors = {k: v for k, v in vectors.items() if v}
+        verdicts = None
+        if self.judge:
+            verdicts = {}
+            ranked = sorted(
+                candidate_pairs(updated, vectors, s.effective_threshold, only_ids),
+                key=lambda row: -row[2],
+            )[: s.max_judge_calls]
+            for a, b, _, _ in ranked:
+                try:
+                    verdicts[pair_id(a, b)] = await self.judge.judge(
+                        a, b, recent_evidence(a), recent_evidence(b)
+                    )
+                except Exception as error:  # an invalid verdict is dropped, never guessed
+                    self.journal.audit("system", "judge_rejected", type(error).__name__)
+        new, skipped = propose(updated, vectors, s.effective_threshold, verdicts, only_ids)
+        updated["edges"].update(new)
+        self.commit(updated)
+        usage = {
+            "embedder": getattr(self.embedder, "usage", {}),
+            "judge": getattr(self.judge, "usage", {}),
+        }
+        return {
+            "proposed": len(new),
+            "edges": sorted(new),
+            "skipped": skipped,
+            "threshold": s.effective_threshold,
+            "mode": s.similarity_mode + ("+judge" if self.judge else ""),
+            "usage": usage,
+        }
 
     async def consolidate(self, actor):
         async with self.lock:

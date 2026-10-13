@@ -54,6 +54,13 @@ Graphiti má vlastní automatickou temporal extraction. Ta zůstává odvozeným
 - REFINES: zpřesňuje ji.
 - CONTRADICTS: je s ní v rozporu; nemusí znamenat změnu v čase.
 - SUPERSEDES: nahrazuje předchozí formulaci/rozhodnutí; původní historii zachováme.
+- ALIAS_OF: dvě formulace/témata z různých chatů jsou podle návrhu totéž. **Nikdy nesloučí uzly**: potvrzená vazba jen seskupí uzly v `clusters` a rozšíří hledání; odmítnutím nebo smazáním zdroje se rozpojí.
+
+## Návrhy vazeb (AM-003)
+
+`POST /v1/maintenance/propose` (nebo `MEMORY_AUTO_PROPOSE=true` po každém ingestu) porovná uzly stejného druhu, které pocházejí z alespoň dvou různých chatů, a vytvoří hrany `status=candidate`, `origin=proposal` s přesnou citací z obou stran, skóre, jednotlivými signály a důvodem. Signály: lexikální překryv (bez diakritiky a stopwords), sdílení sousedů v grafu, volitelně kosinus embeddingů (`MEMORY_SIMILARITY_MODE=embedding`). Typ vazby jiný než ALIAS_OF a SUPERSEDES určuje jen volitelný LLM soudce (`MEMORY_JUDGE_ENABLED=true`, rozpočet `MEMORY_MAX_JUDGE_CALLS`), jehož citace musí být přesné podřetězce ukázaných důkazů; bez soudce je návrh označen jako nerozlišený (může jít i o CONTRADICTS). SUPERSEDES se navrhne bez modelu, když `valid_from` novějšího tvrzení přesně odpovídá exkluzivnímu `valid_to` staršího a oba mají společné téma.
+
+Pravidla: návrh nic nepotvrdí ani nezmění ve zdroji či uzlech; odmítnutý návrh zůstane jako tvrdá pojistka bez obsahu a nikdy se neobnoví, dokud existují oba konce; smazání zdroje citovaného návrhem návrh odstraní (i potvrzený). Vektory se ukládají jako odvozená cache na uzlu a klientům se nevrací.
 
 ## Dreaming / konsolidace
 

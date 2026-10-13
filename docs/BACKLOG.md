@@ -5,8 +5,8 @@ Každý úkol je samostatný commit/PR s behavior testem. Nejdřív osobní pam�
 | ID | Priorita | Úkol | Hotovo, když |
 |---|---|---|---|
 | AM-001 | P0 | živý Neo4j/Graphiti test a Docker build | clean boot, role/user ingest, UUID provenance, search, restart, deletion/rebuild, isolation skutečně projdou |
-| AM-002 | P0 | pevný CZ eval dataset | 30+ ručně označených scénářů, parapráze, temporal, irrelevant, cross-chat themes, source role; měří precision/recall/provenance/latency/model cost |
-| AM-003 | P0 | aktivní sémantická mapa | embedding podobnost + grafová souvislost navrhují Theme/Thought aliases a vazby napříč různými chaty; žádné auto-confirm ani false merge bez možnosti vrácení |
+| AM-002 | P0 (hotovo: [EVALUATION.md](EVALUATION.md); chybí měření LLM extraktoru) | pevný CZ eval dataset | 30+ ručně označených scénářů, parapráze, temporal, irrelevant, cross-chat themes, source role; měří precision/recall/provenance/latency/model cost |
+| AM-003 | P0 (implementováno; čeká na měření s reálnými embeddingy a kalibraci prahu) | aktivní sémantická mapa | embedding podobnost + grafová souvislost navrhují Theme/Thought aliases a vazby napříč různými chaty; žádné auto-confirm ani false merge bez možnosti vrácení |
 | AM-004 | P1 | UI pro mapu a review | rozbalit téma, vidět zdroje a vývoj, potvrdit/odmítnout uzel/vazbu; candidate jasně viditelný |
 | AM-005 | P1 | dreaming proposals | dávková konsolidace s budgetem, explicitní proposal/evidence/reason, review a revert; original nodes/history zůstávají |
 | AM-006 | P1 | incremental persistence a projection ledger | žádný O(N) snapshot při každé zprávě, DB queries/pagination, crash-safe checkpoints, rozdělení workerů a konzistence reviews |

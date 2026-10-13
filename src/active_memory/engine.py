@@ -190,12 +190,30 @@ def build_context(nodes, max_chars):
 
 
 def remove_episode(state, episode_id):
-    for collection in (state["nodes"], state["edges"]):
-        for key, record in list(collection.items()):
-            record["evidence"] = [e for e in record["evidence"] if e["episode_id"] != episode_id]
-            if not record["evidence"]:
-                del collection[key]
+    for key, node in list(state["nodes"].items()):
+        node["evidence"] = [e for e in node["evidence"] if e["episode_id"] != episode_id]
+        if not node["evidence"]:
+            del state["nodes"][key]
+    for key, edge in list(state["edges"].items()):
+        cited = any(e["episode_id"] == episode_id for e in edge["evidence"])
+        edge["evidence"] = [e for e in edge["evidence"] if e["episode_id"] != episode_id]
+        if edge.get("origin") == "proposal":
+            # A derived proposal stands on all of its quotes: once one is erased it is gone.
+            # A rejected one stays as an evidence-free tombstone so it is never proposed again.
+            if cited:
+                if edge["status"] == "rejected":
+                    edge["evidence"] = []
+                    edge.pop("proposal", None)
+                else:
+                    del state["edges"][key]
+        elif not edge["evidence"]:
+            del state["edges"][key]
     for key, edge in list(state["edges"].items()):
         if edge["source_id"] not in state["nodes"] or edge["target_id"] not in state["nodes"]:
             del state["edges"][key]
     consolidate(state)
+
+
+def public_node(node):
+    """Drop derived vectors from anything returned to clients."""
+    return {k: v for k, v in node.items() if k != "embedding"}

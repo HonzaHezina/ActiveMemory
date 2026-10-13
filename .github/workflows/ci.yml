@@ -108,3 +108,18 @@ jobs:
         run: uv run --no-sync pytest -q tests/test_stack_integration.py -k graphiti
         env:
           MEMORY_TEST_DOCKER_GRAPHITI: 'true'
+      - if: steps.gate.outputs.run == 'true'
+        name: Link proposals with real embeddings and judge on the fixed dataset
+        run: uv run --no-sync python scripts/run_eval.py --proposals --embeddings --judge --output eval-report.json
+        env:
+          MEMORY_MODEL_API_KEY: ${{ secrets.MEMORY_TEST_MODEL_KEY }}
+          MEMORY_EMBEDDING_API_KEY: ${{ secrets.MEMORY_TEST_EMBEDDING_KEY }}
+          MEMORY_MODEL_BASE_URL: ${{ vars.MEMORY_TEST_MODEL_URL || 'https://api.openai.com/v1' }}
+          MEMORY_EMBEDDING_BASE_URL: ${{ vars.MEMORY_TEST_EMBEDDING_URL || 'https://api.openai.com/v1' }}
+          MEMORY_MODEL_NAME: ${{ vars.MEMORY_TEST_MODEL_NAME || 'gpt-4.1-mini' }}
+          MEMORY_EMBEDDING_MODEL: ${{ vars.MEMORY_TEST_EMBEDDING_MODEL || 'text-embedding-3-small' }}
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-report
+          path: eval-report.json
