@@ -120,41 +120,35 @@
         <label class="choice"><input type="radio" name="extraction_mode" value="llm"> <span><strong>Model</strong> – každá nová zpráva uživatele se na pozadí odešle poskytovateli modelu, který z ní navrhne myšlenky, cíle a otázky s citací. Hodí se pro konverzace, které přicházejí z chatovacích aplikací bez hotových návrhů. Pořád jde jen o návrhy ke schválení.</span></label>
       </fieldset>
       <fieldset>
-        <legend>2. Poskytovatel modelu</legend>
-        <label>Předvolba adresy
-          <select id="s-preset">
-            <option value="">(vlastní)</option>
-            <option value="https://api.openai.com/v1">OpenAI</option>
-            <option value="https://generativelanguage.googleapis.com/v1beta/openai">Google Gemini (OpenAI-kompatibilní rozhraní)</option>
-            <option value="https://api.mistral.ai/v1">Mistral</option>
-            <option value="https://openrouter.ai/api/v1">OpenRouter</option>
-            <option value="http://localhost:11434/v1">Lokální model (Ollama)</option>
-          </select></label>
+        <legend>2. Poskytovatel a modely</legend>
+        <label>Poskytovatel (předvolba)
+          <select id="s-preset"></select></label>
+        <p id="s-preset-note" class="meta"></p>
         <label>Adresa API <input id="s-model_base_url" type="text" inputmode="url" placeholder="https://…/v1"></label>
-        <label>Název modelu <input id="s-model_name" type="text" placeholder="např. gpt-4.1-mini"></label>
         <label>Klíč API <input id="s-model_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
-        <p id="s-model-key-state" class="meta"></p>
-        <p class="meta">Gemini i Mistral nabízejí rozhraní ve stylu OpenAI, proto stačí adresa, název modelu a klíč. Zda zvolený model umí strukturovaný JSON výstup, který extrakce vyžaduje, a jak si vede v češtině, <strong>jsme neověřili</strong> – otestujte na vlastních datech (tlačítko Otestovat ověří jen spojení). Jeden poskytovatel pro model a jeden pro embeddingy; víc profilů je v plánu.</p>
+        <p class="meta"><span id="s-model-key-state"></span> <button type="button" class="link" id="s-clear-model-key">Smazat uložený klíč</button></p>
+        <label>Model pro extrakci nových zpráv <input id="s-model_name" type="text" placeholder="např. gemini-3.5-flash-lite"></label>
+        <label>Model pro rady a posuzování vazeb <input id="s-advice_model" type="text" placeholder="(prázdné = stejný jako pro extrakci)"></label>
+        <p class="meta">Extrakce běží na každé nové zprávě, proto se hodí levný a rychlý model. Rady a posuzování vazeb jsou řidší a krátké, tam se vyplatí silnější model.
+          Model musí umět strukturovaný JSON výstup; když ho poskytovatel odmítne, zkusí se prostý JSON režim s popisem schématu a odpověď se vždy ověří.
+          Jak si modely vedou v češtině, <strong>jsme neověřili</strong> – tlačítko Otestovat ověří jen spojení.</p>
       </fieldset>
       <fieldset>
         <legend>3. Souhlas s odesláním</legend>
         <label class="choice"><input id="s-allow_model_calls" type="checkbox"> <span id="s-consent-text">Souhlasím s odesíláním textů zpráv poskytovateli modelu.</span></label>
       </fieldset>
       <fieldset>
-        <legend>4. Vazby mezi myšlenkami (volitelné)</legend>
+        <legend>4. Vazby, embeddingy a rady modelu (volitelné)</legend>
         <label>Hledání podobností
           <select id="s-similarity_mode"><option value="lexical">jen z textu (bez služby)</option><option value="embedding">pomocí embeddingů (odesílá texty poskytovateli)</option></select></label>
-        <label>Předvolba adresy embeddingů
-          <select id="s-emb-preset">
-            <option value="">(vlastní)</option>
-            <option value="https://api.openai.com/v1">OpenAI</option>
-            <option value="https://generativelanguage.googleapis.com/v1beta/openai">Google Gemini</option>
-            <option value="https://api.mistral.ai/v1">Mistral</option>
-          </select></label>
-        <label>Adresa embeddingů <input id="s-embedding_base_url" type="text" inputmode="url"></label>
-        <label>Model embeddingů <input id="s-embedding_model" type="text"></label>
-        <label>Klíč embeddingů <input id="s-embedding_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
-        <p id="s-emb-key-state" class="meta"></p>
+        <label class="choice"><input id="s-emb-same" type="checkbox" checked> <span>Embeddingy: stejný poskytovatel a stejný klíč jako model (doporučeno pro začátek)</span></label>
+        <label>Model embeddingů <input id="s-embedding_model" type="text" placeholder="(prázdné = obvyklý model poskytovatele)"></label>
+        <p id="s-emb-effective" class="meta"></p>
+        <div id="s-emb-own" hidden class="own">
+          <label>Vlastní adresa embeddingů <input id="s-embedding_base_url" type="text" inputmode="url"></label>
+          <label>Vlastní klíč embeddingů <input id="s-embedding_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
+          <p class="meta"><span id="s-emb-key-state"></span> <button type="button" class="link" id="s-clear-emb-key">Smazat uložený klíč</button></p>
+        </div>
         <label class="choice"><input id="s-judge_enabled" type="checkbox"> <span>Nechat model posoudit, zda jsou dvě myšlenky totéž nebo protiklad (jen návrh, rozhoduje člověk).</span></label>
         <label class="choice"><input id="s-recommend_enabled" type="checkbox"> <span>Povolit modelu doporučovat u návrhů „potvrdit / zamítnout“ (jen rada s důvodem; nikdy nerozhoduje. Odesílá citace návrhů poskytovateli modelu).</span></label>
         <label>Nejvíc návrhů najednou <input id="s-max_recommend_calls" type="number" min="0" max="500" step="1"></label>

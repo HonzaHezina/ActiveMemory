@@ -23,6 +23,7 @@ from .providers import (
     OpenAIEmbeddings,
 )
 from .settings import (
+    PRESETS,
     RUNTIME_FIELDS,
     SECRET_FIELDS,
     Settings,
@@ -127,8 +128,17 @@ class MemoryService:
             "overridden": self.overridden,
             "providers": {
                 "model_host": urlparse(s.model_base_url).hostname,
-                "embedding_host": urlparse(s.embedding_base_url).hostname,
+                "embedding_host": urlparse(s.effective_embedding_base_url).hostname,
             },
+            # What is really used when a field is left empty ("same as model").
+            "effective": {
+                "advice_model": s.effective_advice_model,
+                "embedding_model": s.effective_embedding_model,
+                "embedding_dim": s.effective_embedding_dim,
+                "embedding_same_provider": not s.embedding_base_url,
+                "embedding_same_key": not s.embedding_api_key,
+            },
+            "presets": PRESETS,
             "fixed": {
                 "backend": s.backend,
                 "graphiti_enabled": s.graphiti_enabled,
@@ -160,7 +170,7 @@ class MemoryService:
                     changed.append(key)
                     merged[key] = value
             for key in ("model_base_url", "embedding_base_url"):
-                if key in changed:
+                if key in changed and merged[key]:
                     check_endpoint(merged[key])
             try:
                 new = Settings(**merged)
@@ -204,9 +214,9 @@ class MemoryService:
             )
         else:
             url, key, body = (
-                s.embedding_base_url.rstrip("/") + "/embeddings",
-                s.embedding_api_key,
-                {"model": s.embedding_model, "input": ["test"]},
+                s.effective_embedding_base_url.rstrip("/") + "/embeddings",
+                s.effective_embedding_api_key,
+                {"model": s.effective_embedding_model, "input": ["test"]},
             )
         if not key:
             raise ValueError("no API key is set for this provider")
@@ -396,14 +406,14 @@ class MemoryService:
                 "score": edge["proposal"]["score"],
             }
             if judge:
-                origin["model"] = self.settings.model_name
+                origin["model"] = self.settings.effective_advice_model
                 origin["provider"] = urlparse(self.settings.model_base_url).hostname
             events.append(
                 ev.build(
                     "candidate.created",
                     actor={
                         "kind": "model",
-                        "identifier": self.settings.model_name,
+                        "identifier": self.settings.effective_advice_model,
                         "assurance": "internal",
                     }
                     if judge
@@ -810,7 +820,7 @@ class MemoryService:
                     )
                 else:
                     waiting += 1
-            model = self.settings.model_name
+            model = self.settings.effective_advice_model
             host = urlparse(self.settings.model_base_url).hostname
         progress.update(total=len(work), done=0, failed=0)
         counts = {"confirm": 0, "reject": 0, "unsure": 0}
@@ -898,7 +908,7 @@ class MemoryService:
             "open_candidates": open_counts,
             "decided_with_advice": agreement,
             "enabled": bool(self.recommender),
-            "model": self.settings.model_name if self.recommender else None,
+            "model": self.settings.effective_advice_model if self.recommender else None,
             "provider": urlparse(self.settings.model_base_url).hostname
             if self.recommender
             else None,

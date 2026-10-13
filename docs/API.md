@@ -150,6 +150,19 @@ označené jako nedůvěryhodná data. Zapnutí vyžaduje souhlas s voláním mo
 | PUT `/v1/settings/llm` | admin | částečná změna (chybějící pole beze změny, prázdný klíč `""` ho smaže); neplatná změna nezmění nic a vrátí důvod (422) |
 | POST `/v1/settings/llm/test` | admin | jedno krátké volání poskytovatele s vymyšleným textem (`target`: `model` nebo `embedding`); vrací jen stav, ne tělo odpovědi |
 
+**Poskytovatelé a modely (ověřeno v dokumentaci 2026-10-13, kvalita na češtině neměřena):** `GET /v1/settings` vrací `presets` s doporučenými
+modely podle činnosti. Extrakce běží na každé zprávě (levný rychlý model), rady a posuzování vazeb jsou řidší (silnější model, pole `advice_model`).
+
+| Předvolba | Extrakce | Rady / posuzování vazeb | Embeddingy |
+|---|---|---|---|
+| Google Gemini (`…/v1beta/openai`, rozhraní OpenAI v beta stavu) | `gemini-3.5-flash-lite` (0,30 / 2,50 USD za M tokenů) | `gemini-3.8-flash` (0,75 / 3,75 USD do 31. 12. 2026, pak 1,50 / 7,50) | `gemini-embedding-001` (3072 rozměrů výchozí) |
+| Mistral (`api.mistral.ai/v1`) | `mistral-small-2603` (Small 4; 0,15 / 0,6 USD) | `mistral-medium-3-5` (1,5 / 7,5 USD) | `mistral-embed-2312` (8k kontext, 0,1 USD; rozměr 1024 z běžně uváděné hodnoty, v načtené dokumentaci nepotvrzen) |
+
+Embeddingy používají **stejného poskytovatele a stejný klíč jako model**, dokud nezadáte vlastní adresu (`embedding_base_url`) a vlastní klíč.
+Klíč modelu se nikdy nepošle na jiný host než model: vlastní adresa embeddingů vyžaduje vlastní klíč. Strukturovaný výstup: nejdřív režim
+`json_schema`; odmítne-li ho poskytovatel (HTTP 400/422), zkusí se jednou prostý JSON režim s popisem schématu a odpověď se vždy ověří lokálně.
+Zda Gemini a Mistral přijmou naše schéma v režimu `json_schema`, **nebylo vyzkoušeno** (nemáme klíč); dokumentace Googlu uvádí jen podmnožinu JSON Schema.
+
 Měnit lze: režim extrakce, souhlas s voláním modelu, adresu/model/klíč poskytovatele, embeddingy, hledání podobností, posuzování vazeb
 a automatické návrhy. Backend, Neo4j, Graphiti a scope zůstávají nastavením nasazení. Pravidla jsou stejná jako u prostředí
 (model vyžaduje výslovný souhlas a klíč). Hodnoty se ukládají do `data/settings.override.json` (klíče v čitelné podobě, soubor

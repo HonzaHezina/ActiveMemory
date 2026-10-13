@@ -226,7 +226,7 @@ def test_relation_judge_requires_quotes_from_shown_evidence(monkeypatch, answer,
 def test_similarity_settings_require_explicit_model_authorization():
     with pytest.raises(ValueError, match="ALLOW_MODEL_CALLS"):
         Settings(_env_file=None, similarity_mode="embedding", embedding_api_key="k")
-    with pytest.raises(ValueError, match="embedding_api_key"):
+    with pytest.raises(ValueError, match="API key is required for embeddings"):
         Settings(_env_file=None, similarity_mode="embedding", allow_model_calls=True)
     with pytest.raises(ValueError, match="model_api_key"):
         Settings(_env_file=None, judge_enabled=True, allow_model_calls=True)

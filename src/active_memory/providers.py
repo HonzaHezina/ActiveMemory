@@ -8,6 +8,44 @@ import httpx
 from .models import Extraction, Recommendation, Verdict
 
 
+async def chat_json(settings, transport, model, messages, name, schema):
+    """One chat call that must answer with JSON. Tries the provider's JSON-schema mode first and,
+    if the provider rejects that request (HTTP 400/422), retries once in plain JSON mode with the
+    schema spelled out in the prompt. The caller validates the answer either way."""
+    url = settings.model_base_url.rstrip("/") + "/chat/completions"
+    headers = {"Authorization": f"Bearer {settings.model_api_key}"}
+    async with httpx.AsyncClient(timeout=settings.timeout_seconds, transport=transport) as client:
+        response = await client.post(
+            url,
+            headers=headers,
+            json={
+                "model": model,
+                "messages": messages,
+                "response_format": {
+                    "type": "json_schema",
+                    "json_schema": {"name": name, "schema": schema},
+                },
+            },
+        )
+        if response.status_code in (400, 422):
+            note = (
+                "Answer with one JSON object only, no other text, following this JSON schema: "
+                + json.dumps(schema, ensure_ascii=False)
+            )
+            fallback = [{**messages[0], "content": messages[0]["content"] + "\n\n" + note}]
+            response = await client.post(
+                url,
+                headers=headers,
+                json={
+                    "model": model,
+                    "messages": fallback + messages[1:],
+                    "response_format": {"type": "json_object"},
+                },
+            )
+        response.raise_for_status()
+        return response.json()
+
+
 class LLMExtractor:
     def __init__(self, settings):
         self.settings = settings
@@ -27,31 +65,21 @@ class LLMExtractor:
             "All output will remain candidate until reviewed. Known themes: "
             + json.dumps(themes[:50], ensure_ascii=False)
         )
-        async with httpx.AsyncClient(timeout=s.timeout_seconds) as client:
-            response = await client.post(
-                s.model_base_url.rstrip("/") + "/chat/completions",
-                headers={"Authorization": f"Bearer {s.model_api_key}"},
-                json={
-                    "model": s.model_name,
-                    "messages": [
-                        {"role": "system", "content": instruction},
-                        {"role": "user", "content": message.content},
-                    ],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "memory_extraction",
-                            "schema": Extraction.model_json_schema(),
-                        },
-                    },
-                },
-            )
-            response.raise_for_status()
-            body = response.json()
-            self.usage["calls"] += 1
-            for key in ("prompt_tokens", "completion_tokens"):
-                self.usage[key] += int((body.get("usage") or {}).get(key) or 0)
-            extraction = Extraction.model_validate_json(body["choices"][0]["message"]["content"])
+        body = await chat_json(
+            s,
+            None,
+            s.model_name,
+            [
+                {"role": "system", "content": instruction},
+                {"role": "user", "content": message.content},
+            ],
+            "memory_extraction",
+            Extraction.model_json_schema(),
+        )
+        self.usage["calls"] += 1
+        for key in ("prompt_tokens", "completion_tokens"):
+            self.usage[key] += int((body.get("usage") or {}).get(key) or 0)
+        extraction = Extraction.model_validate_json(body["choices"][0]["message"]["content"])
         for item in extraction.items:
             if item.quote not in message.content:
                 raise ValueError("LLM returned an unsupported evidence quote")
@@ -63,7 +91,7 @@ class OpenAIEmbeddings:
 
     def __init__(self, settings):
         self.settings = settings
-        self.model = settings.embedding_model
+        self.model = settings.effective_embedding_model
         self.usage = {"calls": 0, "texts": 0, "tokens": 0}
 
     async def embed(self, texts):
@@ -73,9 +101,9 @@ class OpenAIEmbeddings:
             for start in range(0, len(texts), 64):
                 batch = texts[start : start + 64]
                 response = await client.post(
-                    s.embedding_base_url.rstrip("/") + "/embeddings",
-                    headers={"Authorization": f"Bearer {s.embedding_api_key}"},
-                    json={"model": s.embedding_model, "input": batch},
+                    s.effective_embedding_base_url.rstrip("/") + "/embeddings",
+                    headers={"Authorization": f"Bearer {s.effective_embedding_api_key}"},
+                    json={"model": s.effective_embedding_model, "input": batch},
                 )
                 response.raise_for_status()
                 body = response.json()
@@ -121,33 +149,23 @@ class LLMRelationJudge:
                 ],
             }
 
-        async with httpx.AsyncClient(timeout=s.timeout_seconds) as client:
-            response = await client.post(
-                s.model_base_url.rstrip("/") + "/chat/completions",
-                headers={"Authorization": f"Bearer {s.model_api_key}"},
-                json={
-                    "model": s.model_name,
-                    "messages": [
-                        {"role": "system", "content": instruction},
-                        {
-                            "role": "user",
-                            "content": json.dumps(
-                                {"A": describe(a, evidence_a), "B": describe(b, evidence_b)},
-                                ensure_ascii=False,
-                            ),
-                        },
-                    ],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "relation_verdict",
-                            "schema": Verdict.model_json_schema(),
-                        },
-                    },
+        body = await chat_json(
+            s,
+            None,
+            s.effective_advice_model,
+            [
+                {"role": "system", "content": instruction},
+                {
+                    "role": "user",
+                    "content": json.dumps(
+                        {"A": describe(a, evidence_a), "B": describe(b, evidence_b)},
+                        ensure_ascii=False,
+                    ),
                 },
-            )
-            response.raise_for_status()
-            body = response.json()
+            ],
+            "relation_verdict",
+            Verdict.model_json_schema(),
+        )
         self.usage["calls"] += 1
         for key in ("prompt_tokens", "completion_tokens"):
             self.usage[key] += int((body.get("usage") or {}).get(key) or 0)
@@ -182,27 +200,17 @@ class LLMRecommender:
             "is ambiguous. Your answer is advice; a human decides. Write the reason in Czech, "
             "one or two sentences, without quoting more than a few words and without chain-of-thought."
         )
-        async with httpx.AsyncClient(timeout=s.timeout_seconds, transport=self.transport) as client:
-            response = await client.post(
-                s.model_base_url.rstrip("/") + "/chat/completions",
-                headers={"Authorization": f"Bearer {s.model_api_key}"},
-                json={
-                    "model": s.model_name,
-                    "messages": [
-                        {"role": "system", "content": instruction},
-                        {"role": "user", "content": json.dumps(description, ensure_ascii=False)},
-                    ],
-                    "response_format": {
-                        "type": "json_schema",
-                        "json_schema": {
-                            "name": "candidate_recommendation",
-                            "schema": Recommendation.model_json_schema(),
-                        },
-                    },
-                },
-            )
-            response.raise_for_status()
-            body = response.json()
+        body = await chat_json(
+            s,
+            self.transport,
+            s.effective_advice_model,
+            [
+                {"role": "system", "content": instruction},
+                {"role": "user", "content": json.dumps(description, ensure_ascii=False)},
+            ],
+            "candidate_recommendation",
+            Recommendation.model_json_schema(),
+        )
         self.usage["calls"] += 1
         for key in ("prompt_tokens", "completion_tokens"):
             self.usage[key] += int((body.get("usage") or {}).get(key) or 0)
@@ -238,10 +246,10 @@ class GraphitiAdapter:
             llm_client=OpenAIGenericClient(config=llm),
             embedder=OpenAIEmbedder(
                 config=OpenAIEmbedderConfig(
-                    api_key=s.embedding_api_key,
-                    base_url=s.embedding_base_url,
-                    embedding_model=s.embedding_model,
-                    embedding_dim=s.embedding_dim,
+                    api_key=s.effective_embedding_api_key,
+                    base_url=s.effective_embedding_base_url,
+                    embedding_model=s.effective_embedding_model,
+                    embedding_dim=s.effective_embedding_dim,
                 )
             ),
             cross_encoder=OpenAIRerankerClient(

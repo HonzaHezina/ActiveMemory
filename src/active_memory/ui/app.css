@@ -154,3 +154,5 @@ select, input { max-width: 100%; }
 .advice-head { font-size: .8rem; text-transform: uppercase; letter-spacing: .04em; color: var(--muted); }
 .advice-reason { margin-top: 2px; }
 .timeline li.t-recommended { border-left-color: var(--accent); border-left-style: dotted; }
+
+.settings .own { display: grid; gap: 10px; padding-left: 14px; border-left: 3px solid var(--line); }

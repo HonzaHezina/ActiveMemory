@@ -144,8 +144,9 @@ class LLMSettingsUpdate(Strict):
     model_base_url: str | None = Field(default=None, max_length=500)
     model_name: str | None = Field(default=None, min_length=1, max_length=200)
     model_api_key: str | None = Field(default=None, max_length=500)  # "" removes the key
-    embedding_base_url: str | None = Field(default=None, max_length=500)
-    embedding_model: str | None = Field(default=None, min_length=1, max_length=200)
+    advice_model: str | None = Field(default=None, max_length=200)  # "" = same as model_name
+    embedding_base_url: str | None = Field(default=None, max_length=500)  # "" = model provider
+    embedding_model: str | None = Field(default=None, max_length=200)  # "" = provider default
     embedding_dim: int | None = Field(default=None, ge=8, le=8192)
     embedding_api_key: str | None = Field(default=None, max_length=500)
     similarity_mode: Literal["lexical", "embedding"] | None = None
