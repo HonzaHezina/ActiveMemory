@@ -674,3 +674,34 @@ def test_queue_item_keeps_exact_quote_and_untrusted_markup_as_plain_data(client)
     assert item["evidence"][0]["role"] == "user" and item["evidence"][0]["message_id"]
     assert item["evidence"][0]["url"] is None  # no external link exists, none is shown
     assert item["decision"] is None and item["status"] == "candidate"
+
+
+def links_created(client):
+    return [
+        e
+        for e in events(client, type="candidate.created", limit=200)["events"]
+        if e["subject"]["kind"] == "link" and e["data"]["origin"]["kind"] == "manual"
+    ]
+
+
+def test_manual_link_event_write_failure_is_repaired_with_the_created_event(client, monkeypatch):
+    source = ingest(client)
+    nodes = client.get("/v1/map").json()["nodes"]
+    goal, theme = (next(n for n in nodes if n["kind"] == k) for k in ("Goal", "Theme"))
+    body = {
+        "source_id": goal["id"],
+        "target_id": theme["id"],
+        "relation": "SUPPORTS",
+        "episode_id": source,
+        "quote": QUOTE,
+    }
+    memory = client.app.state.memory
+    monkeypatch.setattr(memory.journal, "complete", lambda *a: (_ for _ in ()).throw(OSError()))
+    assert client.post("/v1/links", json=body).status_code == 503
+    monkeypatch.undo()
+    assert links_created(client) == []
+    assert memory.recover() == 1
+    created = links_created(client)
+    assert len(created) == 1 and created[0]["data"]["origin"]["kind"] == "manual"
+    assert client.post("/v1/links", json=body).status_code in (200, 201)  # repeat: no new event
+    assert len(links_created(client)) == 1

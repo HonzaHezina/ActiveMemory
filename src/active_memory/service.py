@@ -112,8 +112,10 @@ class MemoryService:
             table = self.state["nodes" if kind == "node" else "edges"]
             record = table.get(ident)
             last = self.journal.last_state(f"{kind}:{ident}")
-            if record and record["status"] == event["new_state"] and (
-                last is None or last[0] != event["new_state"]
+            if (
+                record
+                and record["status"] == event["new_state"]
+                and (last is None or last[0] != event["new_state"])
             ):
                 self.journal.complete(event, intent)
                 done += 1
@@ -371,9 +373,10 @@ class MemoryService:
                 "status": "candidate",
                 "evidence": [{"episode_id": link.episode_id, "quote": link.quote}],
             }
-            self.commit(updated)
             edge = updated["edges"][edge_id]
-            self.record(
+            self.recover()
+            self.decide(
+                updated,
                 ev.build(
                     "candidate.created",
                     actor=principal(actor),
@@ -386,7 +389,7 @@ class MemoryService:
                         "origin": {"kind": "manual", "supplied_by_client": actor},
                         "evidence_count": 1,
                     },
-                )
+                ),
             )
             return edge
 

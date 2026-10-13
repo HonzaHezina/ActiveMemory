@@ -217,8 +217,10 @@ class Journal:
 
     def intents(self):
         with self.db() as db:
-            return [(r["id"], json.loads(r["body"])) for r in db.execute(
-                "SELECT id, body FROM event_intents ORDER BY id")]
+            return [
+                (r["id"], json.loads(r["body"]))
+                for r in db.execute("SELECT id, body FROM event_intents ORDER BY id")
+            ]
 
     # -- reading events -------------------------------------------------------------------
     def _public(self, row, deleted):

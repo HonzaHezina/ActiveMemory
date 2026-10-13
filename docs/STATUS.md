@@ -49,7 +49,7 @@ Cíl: aktivní myšlenková mapa, kde se stejná myšlenka z různých chatů sp
 
 - Admin token neprokazuje, že rozhodl člověk (`actor.assurance=bearer_token`); jiné ověření neexistuje.
 - Mezi změnou grafu a zápisem události není společná transakce. Selhání zápisu po potvrzení grafu se projeví jako `audit.consistent=false`
-  a 503; opravu zapíše pravdivou událost ze záměru při startu, před dalším rozhodnutím a v nečinnosti workeru (`event_intents`). Bez záměru zbývá `candidate.snapshot`/`reconciliation`. Společná transakce grafu a SQLite stále není (AM-019 zbytek). Ověřeno testy s vynuceným selháním; pád procesu skutečně nezkoušen.
+  a 503; opravu zapíše pravdivou událost ze záměru při startu, před dalším rozhodnutím a v nečinnosti workeru (`event_intents`). Bez záměru zbývá `candidate.snapshot`/`reconciliation`. Společná transakce grafu a SQLite stále není (AM-019 zbytek). Záměr kryje review uzlů i vazeb a ruční vazby (`candidate.created`); zpracování zdrojů a automatické návrhy vazeb záměr nepoužívají. Ověřeno testy s vynuceným selháním; pád procesu skutečně nezkoušen.
 - Triggery chrání před chybou aplikace, ne před správcem databáze. Audit není podepsaný ani externě kotvený.
 - `target_assistant` kontextu je vždy neznámý. Odběr událostí je jen dotazováním kurzorem (žádné SSE/WebSocket).
 - Fronta počítá pořadí z auditu na každý dotaz (O(N) nad počtem kandidátů); pro velké grafy viz AM-006.
