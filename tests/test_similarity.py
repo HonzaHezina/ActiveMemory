@@ -388,3 +388,27 @@ def test_rejected_node_is_not_paired(client, twins):
     first = next(iter(memory.state["nodes"]))
     client.post(f"/v1/nodes/{first}/review", json={"status": "rejected"})
     assert propose(client)["proposed"] == 0
+
+
+def test_proposal_event_write_failure_is_repaired_with_the_true_created_events(
+    client, twins, monkeypatch
+):
+    from active_memory.service import AuditGap
+
+    memory = client.app.state.memory
+
+    def created():
+        found = client.get("/v1/events", params={"type": "candidate.created", "limit": 200})
+        return [e for e in found.json()["events"] if e["subject"]["kind"] == "link"]
+
+    monkeypatch.setattr(memory.journal, "complete", lambda *a: (_ for _ in ()).throw(OSError()))
+    with pytest.raises(AuditGap):
+        propose(client)
+    monkeypatch.undo()
+    assert len(links(client)) == 1 and created() == []  # applied to the graph, not yet recorded
+    assert memory.recover() == 1
+    (event,) = created()
+    assert event["data"]["origin"]["kind"] == "similarity"
+    assert event["actor"]["kind"] == "system" and event["new_state"] == "candidate"
+    propose(client)  # idempotent: no second proposal, no second event
+    assert len(created()) == 1

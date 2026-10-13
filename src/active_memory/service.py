@@ -86,18 +86,20 @@ class MemoryService:
         except Exception:
             raise AuditGap(applied) from None
 
-    def decide(self, updated, event):
-        """Apply a decision to the graph and record its event; the intent bridges a crash between."""
-        intent = self.journal.intend(event)
+    def decide(self, updated, *events):
+        """Apply a change to the graph and record its events; intents bridge a crash between."""
+        intents = [self.journal.intend(event) for event in events]
         try:
             self.commit(updated)
         except BaseException:
-            self.journal.abandon(intent)  # graph unchanged: no event, no leftover intent
+            for intent in intents:
+                self.journal.abandon(intent)  # graph unchanged: no event, no leftover intent
             raise
         try:
-            self.journal.complete(event, intent)
+            for event, intent in zip(events, intents, strict=True):
+                self.journal.complete(event, intent)
         except Exception:
-            raise AuditGap(True) from None  # intent stays; recover() writes the true event later
+            raise AuditGap(True) from None  # intents stay; recover() writes the true events later
 
     def recover(self):
         """Resolve intents left by an interrupted decision, using the projection as the witness.
@@ -468,9 +470,9 @@ class MemoryService:
                     self.journal.audit("system", "judge_rejected", type(error).__name__)
         new, skipped = propose(updated, vectors, s.effective_threshold, verdicts, only_ids)
         updated["edges"].update(new)
-        self.commit(updated)
-        for event in self.proposal_events(list(new.values()), "propose-" + uuid4().hex[:12]):
-            self.record(event)
+        self.decide(
+            updated, *self.proposal_events(list(new.values()), "propose-" + uuid4().hex[:12])
+        )
         usage = {
             "embedder": getattr(self.embedder, "usage", {}),
             "judge": getattr(self.judge, "usage", {}),
