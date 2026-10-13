@@ -248,6 +248,22 @@ def create_app(settings=None):
     def candidate(kind: Literal["node", "link"], item_id: str, client=Depends(read)):
         return service.candidate(kind, item_id)
 
+    @app.get("/v1/conversations")
+    def conversations(
+        cursor: str | None = None,
+        limit: int = URLQuery(default=25, ge=1, le=100),
+        client=Depends(read),
+    ):
+        """Live conversations, newest first, with how many candidates each produced."""
+        return service.conversations(cursor, limit)
+
+    @app.get("/v1/conversations/{source_system}/{conversation_id:path}")
+    def conversation(source_system: str, conversation_id: str, client=Depends(read)):
+        try:
+            return service.conversation(source_system, conversation_id)
+        except KeyError:
+            raise HTTPException(404, "conversation not found") from None
+
     @app.get("/v1/events")
     def events(
         type: list[str] = URLQuery(default=[]),

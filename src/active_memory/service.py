@@ -630,6 +630,114 @@ class MemoryService:
             }
         return view
 
+    def derived_by_source(self):
+        """episode_id -> candidates that cite it. Built from the projection on each call (O(N))."""
+        found = {}
+        nodes = self.state["nodes"]
+        for item_kind, records in (("node", nodes), ("link", self.state["edges"])):
+            for record in records.values():
+                if item_kind == "node":
+                    title, candidate_kind = record["label"], record["kind"]
+                else:
+                    ends = (nodes.get(record["source_id"]), nodes.get(record["target_id"]))
+                    title = " – ".join(n["label"] if n else "(uzel nedostupný)" for n in ends)
+                    candidate_kind = record["relation"]
+                for episode_id in {e["episode_id"] for e in record["evidence"]}:
+                    quotes = [
+                        e["quote"] for e in record["evidence"] if e["episode_id"] == episode_id
+                    ]
+                    found.setdefault(episode_id, []).append(
+                        {
+                            "subject": {"kind": item_kind, "identifier": record["id"]},
+                            "candidate_kind": candidate_kind,
+                            "title": title,
+                            "status": record["status"],
+                            "quotes": quotes,
+                        }
+                    )
+        return found
+
+    def conversations(self, cursor=None, limit=25):
+        """Live conversations, newest activity first; keyset cursor 'last_at|source|conversation'."""
+        derived = self.derived_by_source()
+        groups = {}
+        for episode_id, payload in self.journal.live_episodes():
+            key = (payload["source_system"], payload["conversation_id"])
+            group = groups.setdefault(
+                key, {"messages": 0, "first_at": None, "last_at": None, "items": {}}
+            )
+            group["messages"] += 1
+            stamp = payload["occurred_at"]
+            group["first_at"] = min(filter(None, [group["first_at"], stamp]))
+            group["last_at"] = max(filter(None, [group["last_at"], stamp]))
+            for item in derived.get(episode_id, []):
+                group["items"][(item["subject"]["kind"], item["subject"]["identifier"])] = item
+        rows = []
+        for (source_system, conversation_id), group in groups.items():
+            counts = {"candidate": 0, "confirmed": 0, "rejected": 0}
+            for item in group["items"].values():
+                counts[item["status"]] += 1
+            rows.append(
+                {
+                    "source_system": source_system,
+                    "conversation_id": conversation_id,
+                    "messages": group["messages"],
+                    "first_at": group["first_at"],
+                    "last_at": group["last_at"],
+                    "derived": counts,
+                }
+            )
+        rows.sort(
+            key=lambda r: (r["last_at"], r["source_system"], r["conversation_id"]), reverse=True
+        )
+        if cursor:
+            try:
+                last_at, source_system, conversation_id = cursor.split("|", 2)
+            except ValueError:
+                raise ValueError("invalid cursor") from None
+            after = (last_at, source_system, conversation_id)
+            rows = [
+                r for r in rows if (r["last_at"], r["source_system"], r["conversation_id"]) < after
+            ]
+        page = rows[:limit]
+        more = len(rows) > limit
+        last = page[-1] if page else None
+        return {
+            "conversations": page,
+            "has_more": more,
+            "next_cursor": (
+                f"{last['last_at']}|{last['source_system']}|{last['conversation_id']}"
+                if more and last
+                else None
+            ),
+            "total": len(groups),
+        }
+
+    def conversation(self, source_system, conversation_id):
+        """All live messages of one conversation, oldest first, with the candidates each produced."""
+        derived = self.derived_by_source()
+        messages = [
+            {
+                "episode_id": episode_id,
+                "message_id": payload["message_id"],
+                "role": payload["role"],
+                "occurred_at": payload["occurred_at"],
+                "content": payload["content"],
+                "derived": derived.get(episode_id, []),
+            }
+            for episode_id, payload in self.journal.live_episodes()
+            if payload["source_system"] == source_system
+            and payload["conversation_id"] == conversation_id
+        ]
+        if not messages:
+            raise KeyError(conversation_id)
+        messages.sort(key=lambda m: (m["occurred_at"], m["message_id"]))
+        return {
+            "source_system": source_system,
+            "conversation_id": conversation_id,
+            "messages": messages,
+        }
+
     def candidates(self, kind="all", status="candidate", relation=None, cursor=None, limit=50):
         """Stable keyset page: ordered by (first event sequence, id). Unaudited items sort last."""
         rows = []
