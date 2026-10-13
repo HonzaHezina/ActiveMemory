@@ -451,7 +451,7 @@ def test_event_write_failure_after_graph_commit_is_visible_then_reconciled(
     def broken(*args, **kwargs):
         raise sqlite3.OperationalError("disk full")
 
-    monkeypatch.setattr(memory.journal, "append_event", broken)
+    monkeypatch.setattr(memory.journal, "complete", broken)
     response = client.post(f"/v1/nodes/{nid}/review", json={"status": "confirmed"})
     assert response.status_code == 503 and "not recorded" in response.json()["detail"]
     monkeypatch.undo()
@@ -460,15 +460,45 @@ def test_event_write_failure_after_graph_commit_is_visible_then_reconciled(
     assert item["status"] == "confirmed" and item["audit"]["last_recorded_state"] == "candidate"
     assert item["audit"]["consistent"] is False
     assert events(client, type="candidate.confirmed")["events"] == []
-    # A restart reconciles with an explicit snapshot, not a reconstructed decision.
+    # A restart completes the interrupted decision with its true event (actor, previous state);
+    # nothing is reconstructed, so no snapshot is needed.
     other = create_app(memory.settings)
     with TestClient(other, headers=OWNER) as restarted:
-        snap = events(restarted, type="candidate.snapshot")["events"]
-        assert len(snap) == 1
-        assert snap[0]["occurred_at"] is None and snap[0]["data"]["basis"] == "reconciliation"
-        assert (snap[0]["previous_state"], snap[0]["new_state"]) == ("candidate", "confirmed")
-        assert events(restarted, type="candidate.confirmed")["events"] == []
+        done = events(restarted, type="candidate.confirmed")["events"]
+        assert len(done) == 1 and (done[0]["previous_state"], done[0]["new_state"]) == (
+            "candidate",
+            "confirmed",
+        )
+        assert events(restarted, type="candidate.snapshot")["events"] == []
         assert restarted.get(f"/v1/candidates/node/{nid}").json()["audit"]["consistent"] is True
+        assert restarted.app.state.memory.journal.intents() == []
+
+
+def test_crash_before_graph_commit_drops_the_intent_without_an_event(client, monkeypatch):
+    ingest(client)
+    nid = node_id(client)
+    memory = client.app.state.memory
+    memory.journal.intend(
+        memory.decision_event(
+            "node", memory.state["nodes"][nid], "candidate", "rejected", "owner", None
+        )
+    )  # as if the process died right after announcing the decision, before the graph commit
+    assert memory.recover() == 0
+    assert memory.journal.intents() == []
+    assert events(client, type="candidate.rejected")["events"] == []
+    assert client.get(f"/v1/candidates/node/{nid}").json()["status"] == "candidate"
+
+
+def test_recovery_runs_before_the_next_decision(client, monkeypatch):
+    ingest(client)
+    nid = node_id(client)
+    memory = client.app.state.memory
+    monkeypatch.setattr(memory.journal, "complete", lambda *a: (_ for _ in ()).throw(OSError()))
+    assert client.post(f"/v1/nodes/{nid}/review", json={"status": "confirmed"}).status_code == 503
+    monkeypatch.undo()
+    memory.recover()
+    assert len(events(client, type="candidate.confirmed")["events"]) == 1
+    assert client.get(f"/v1/candidates/node/{nid}").json()["audit"]["consistent"] is True
 
 
 def test_failed_job_commit_is_retried_without_duplicate_events(client, monkeypatch):

@@ -75,6 +75,7 @@ class MemoryService:
     async def initialize(self):
         if self.graphiti:
             await self.graphiti.initialize()
+        self.recover()
         self.reconcile_events()
 
     # -- events ---------------------------------------------------------------------------
@@ -84,6 +85,41 @@ class MemoryService:
             return self.journal.append_event(event)
         except Exception:
             raise AuditGap(applied) from None
+
+    def decide(self, updated, event):
+        """Apply a decision to the graph and record its event; the intent bridges a crash between."""
+        intent = self.journal.intend(event)
+        try:
+            self.commit(updated)
+        except BaseException:
+            self.journal.abandon(intent)  # graph unchanged: no event, no leftover intent
+            raise
+        try:
+            self.journal.complete(event, intent)
+        except Exception:
+            raise AuditGap(True) from None  # intent stays; recover() writes the true event later
+
+    def recover(self):
+        """Resolve intents left by an interrupted decision, using the projection as the witness.
+
+        Projection already in the intended state and the log not -> the graph commit happened, so
+        the decision's own event is written (original actor and previous state, recorded now).
+        Projection not in the intended state -> the commit never happened; the intent is dropped.
+        """
+        done = 0
+        for intent, event in self.journal.intents():
+            kind, ident = event["subject"]["kind"], event["subject"]["identifier"]
+            table = self.state["nodes" if kind == "node" else "edges"]
+            record = table.get(ident)
+            last = self.journal.last_state(f"{kind}:{ident}")
+            if record and record["status"] == event["new_state"] and (
+                last is None or last[0] != event["new_state"]
+            ):
+                self.journal.complete(event, intent)
+                done += 1
+            else:
+                self.journal.abandon(intent)
+        return done
 
     def reconcile_events(self):
         """Make the projection and the event log agree without inventing history.
@@ -289,6 +325,8 @@ class MemoryService:
         while True:
             processed = await self.process_one()
             if not processed:
+                async with self.lock:
+                    self.recover()
                 await asyncio.sleep(self.settings.poll_seconds)
 
     async def review(self, node_id, status, actor, expected=None, correlation_id=None):
@@ -303,11 +341,12 @@ class MemoryService:
             updated = copy.deepcopy(self.state)
             updated["nodes"][node_id]["status"] = status
             # Review does not silently validate relations or other claims.
-            self.commit(updated)
-            self.record(
+            self.recover()
+            self.decide(
+                updated,
                 self.decision_event(
                     "node", updated["nodes"][node_id], current, status, actor, correlation_id
-                )
+                ),
             )
             return updated["nodes"][node_id]
 
@@ -366,8 +405,10 @@ class MemoryService:
             edge["status"] = status
             if status == "rejected" and edge.get("origin") == "proposal":
                 edge["rejected_at"] = utcnow().isoformat()
-            self.commit(updated)
-            self.record(self.decision_event("link", edge, current, status, actor, correlation_id))
+            self.recover()
+            self.decide(
+                updated, self.decision_event("link", edge, current, status, actor, correlation_id)
+            )
             return edge
 
     async def propose_links(self, actor):

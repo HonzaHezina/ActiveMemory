@@ -49,6 +49,8 @@ class Journal:
             if name not in columns:
                 db.execute(f"ALTER TABLE audit ADD COLUMN {name} TEXT")
         db.executescript("""
+            CREATE TABLE IF NOT EXISTS event_intents(
+              id INTEGER PRIMARY KEY, time REAL NOT NULL, body TEXT NOT NULL);
             CREATE UNIQUE INDEX IF NOT EXISTS audit_event_id ON audit(event_id);
             CREATE INDEX IF NOT EXISTS audit_subject ON audit(subject, id);
             CREATE TRIGGER IF NOT EXISTS audit_append_only_update BEFORE UPDATE ON audit
@@ -189,6 +191,34 @@ class Journal:
         return self.audit(
             event["actor"]["identifier"], event["type"], event["subject"]["identifier"], db, event
         )
+
+    # -- intents: bridge between a graph commit and its event ------------------------------
+    # An intent is private operational state (not an event, never served): the decision about to
+    # be applied to the graph. It lets a crash between the graph commit and the event write be
+    # repaired with the true transition instead of an "unknown transition" snapshot.
+    def intend(self, event):
+        with self.db() as db:
+            cursor = db.execute(
+                "INSERT INTO event_intents(time,body) VALUES(?,?)",
+                (round(time.time(), 6), json.dumps(event, ensure_ascii=False, sort_keys=True)),
+            )
+            return cursor.lastrowid
+
+    def abandon(self, intent):
+        with self.db() as db:
+            db.execute("DELETE FROM event_intents WHERE id=?", (intent,))
+
+    def complete(self, event, intent):
+        """Append the event and retire its intent in one transaction."""
+        with self.db() as db:
+            sequence = self.append_event(event, db)
+            db.execute("DELETE FROM event_intents WHERE id=?", (intent,))
+            return sequence
+
+    def intents(self):
+        with self.db() as db:
+            return [(r["id"], json.loads(r["body"])) for r in db.execute(
+                "SELECT id, body FROM event_intents ORDER BY id")]
 
     # -- reading events -------------------------------------------------------------------
     def _public(self, row, deleted):
