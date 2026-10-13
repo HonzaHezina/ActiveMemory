@@ -22,7 +22,9 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/review", "text/html"),
             ("/ui/review.js", "javascript"),
             ("/ui/review_logic.js", "javascript"),
-            ("/ui/review.css", "text/css"),
+            ("/ui/shell.js", "javascript"),
+            ("/ui/conv.js", "javascript"),
+            ("/ui/timeline.js", "javascript"),
         ):
             response = anonymous.get(path)
             assert response.status_code == 200 and kind in response.headers["content-type"]
@@ -45,7 +47,7 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
 
 
 def test_ui_has_no_inline_scripts_external_resources_or_html_injection_sinks():
-    for page in ("index.html", "review.html"):
+    for page in ("index.html",):
         html = (UI / page).read_text(encoding="utf-8")
         assert not re.search(r"<script(?![^>]*[ ]src=)", html) and "onclick=" not in html
         assert not re.search(r"(?:src|href)=[\"']https?:", html)
@@ -97,4 +99,16 @@ def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_i
     assert "?token" not in code and "token=" not in code and "history." not in code
     assert "expected_status" in code and "verifyDecision" in code  # conflicts + fresh-read check
     assert "disabled: !decision.allowed || busy" in code  # blocked while a request runs
-    assert "Odpojit" in (UI / "review.html").read_text(encoding="utf-8")
+    assert "Odpojit" in (UI / "index.html").read_text(encoding="utf-8")
+
+
+def test_all_views_share_one_page_so_the_token_survives_navigation():
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    assert "<form" in html and html.count("<form") == 1  # one connect form for every view
+    for view in ("review", "conversations", "map", "timeline"):
+        assert f'data-view="{view}"' in html
+    # Views never navigate away: no links between pages, so nothing forces a reconnect.
+    assert "<a " not in html
+    for name in ("app.js", "review.js", "conv.js", "timeline.js"):
+        code = (UI / name).read_text(encoding="utf-8")
+        assert "fetch(" not in code and 'getElementById("token")' not in code, name

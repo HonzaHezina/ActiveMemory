@@ -125,8 +125,9 @@
     return {
       label: known ? EVENT[event.type] : "Neznámý typ události (" + event.type + ")",
       known,
-      when: event.recorded_at,
-      occurred: event.occurred_at ? event.occurred_at : "čas vzniku neznámý",
+      when: when(event.recorded_at),
+      whenIso: event.recorded_at,
+      occurred: event.occurred_at ? when(event.occurred_at) : "čas vzniku neznámý",
       actor: event.actor.identifier + " (" + event.actor.kind +
         (event.actor.assurance === "bearer_token" ? ", ověřeno tokenem" : event.actor.assurance === "internal" ? ", interně" : "") + ")",
       subject,
@@ -135,7 +136,42 @@
     };
   }
 
-  const api = { STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
+  // Czech date and time; unknown or invalid input is said to be unknown, never guessed.
+  function when(iso) {
+    if (!iso) return "čas neznámý";
+    const date = new Date(iso);
+    if (Number.isNaN(date.getTime())) return "čas neznámý";
+    return new Intl.DateTimeFormat("cs-CZ", { dateStyle: "medium", timeStyle: "short" }).format(date);
+  }
+
+  // Splits content into plain and marked segments for every quote that occurs in it. Overlapping
+  // quotes are merged. Text is only ever returned as text.
+  function markQuotes(content, quotes) {
+    const spans = [];
+    for (const quote of quotes || []) {
+      if (!quote) continue;
+      const at = content.indexOf(quote);
+      if (at >= 0) spans.push([at, at + quote.length]);
+    }
+    spans.sort((a, b) => a[0] - b[0]);
+    const merged = [];
+    for (const span of spans) {
+      const last = merged[merged.length - 1];
+      if (last && span[0] <= last[1]) last[1] = Math.max(last[1], span[1]);
+      else merged.push(span.slice());
+    }
+    const parts = [];
+    let pos = 0;
+    for (const [start, end] of merged) {
+      if (start > pos) parts.push({ text: content.slice(pos, start), mark: false });
+      parts.push({ text: content.slice(start, end), mark: true });
+      pos = end;
+    }
+    if (pos < content.length) parts.push({ text: content.slice(pos), mark: false });
+    return parts.length ? parts : [{ text: content, mark: false }];
+  }
+
+  const api = { when, markQuotes, STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AMReview = api;
 })(typeof window !== "undefined" ? window : globalThis);

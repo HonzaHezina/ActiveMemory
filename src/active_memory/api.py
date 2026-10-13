@@ -94,12 +94,13 @@ def create_app(settings=None):
         "index.html": ("index.html", "text/html; charset=utf-8"),
         "app.js": ("app.js", "text/javascript; charset=utf-8"),
         "logic.js": ("logic.js", "text/javascript; charset=utf-8"),
-        "app.css": ("app.css", "text/css; charset=utf-8"),
-        "review": ("review.html", "text/html; charset=utf-8"),
-        "review.html": ("review.html", "text/html; charset=utf-8"),
+        "shell.js": ("shell.js", "text/javascript; charset=utf-8"),
         "review.js": ("review.js", "text/javascript; charset=utf-8"),
         "review_logic.js": ("review_logic.js", "text/javascript; charset=utf-8"),
-        "review.css": ("review.css", "text/css; charset=utf-8"),
+        "conv.js": ("conv.js", "text/javascript; charset=utf-8"),
+        "timeline.js": ("timeline.js", "text/javascript; charset=utf-8"),
+        "app.css": ("app.css", "text/css; charset=utf-8"),
+        "review": ("index.html", "text/html; charset=utf-8"),
     }
     ui_headers = {
         # Static shell only: it holds no data and no secret. Data arrives via the authenticated API

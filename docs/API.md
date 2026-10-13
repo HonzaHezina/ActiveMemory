@@ -6,8 +6,9 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 
 | Endpoint | Právo | Význam |
 |---|---|---|
-| GET `/ui/review` | žádné (statický shell bez dat) | fronta kandidátů + časová osa; viz sekce Fronta ke schválení |
-| GET `/ui` | žádné (statický shell bez dat) | prohlížeč mapy; token se zadává na stránce a drží jen v paměti záložky; přísné CSP |
+| GET `/ui` (též `/ui/review`) | žádné (statický shell bez dat) | jedna stránka s menu: Ke schválení, Konverzace, Témata, Návrhy vazeb, Časová osa; token se zadává jednou a drží jen v paměti záložky (přepínání pohledů ho neztratí, obnovení stránky ano); přísné CSP |
+| GET `/v1/conversations` | read | živé konverzace (nejnovější první), kurzor, počty návrhů podle stavu |
+| GET `/v1/conversations/{source_system}/{conversation_id}` | read | zprávy jedné konverzace a co z každé vzniklo (`derived`: návrh, stav, citace); smazaný zdroj zmizí |
 | GET `/healthz` | žádné | proces žije |
 | GET `/readyz` | žádné | journal a graph backend dostupné; neověřuje dostupnost modelu |
 | POST `/v1/episodes` | write | queued ingest, 202, episode_id + duplicate |
@@ -122,7 +123,7 @@ uv run active-memory serve                # reference režim, bez LLM a Neo4j
 export MEMORY_CLIENT_API_KEY='TOKEN'      # Windows: $env:MEMORY_CLIENT_API_KEY='TOKEN'
 uv run python scripts/demo_review_queue.py
 ```
-Otevři `http://127.0.0.1:8080/ui/review`, vlož token. Token s jen `read` smí prohlížet, tlačítka
+Otevři `http://127.0.0.1:8080/ui`, vlož token (jednou; menu nahoře přepíná pohledy beze ztráty připojení). Token s jen `read` smí prohlížet, tlačítka
 Potvrdit/Zamítnout jsou pak zablokována. Demo používá fiktivní konverzace a extrakce dodané skriptem
 (žádné volání modelu) a kandidáty nechá nerozhodnuté; opakované spuštění nic nepřidá.
 Pro read-only pohled: `uv run active-memory init --client reader --permissions read`.

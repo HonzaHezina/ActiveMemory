@@ -1,17 +1,15 @@
-// Review queue + event timeline. A client of the public REST API only: reads /v1/candidates and
-// /v1/events, decides through /v1/nodes|links/{id}/review. All server data is inserted as text.
-// The bearer token lives in this page's memory; "Odpojit" or closing the tab discards it.
+// Review queue view. A client of the public REST API only: reads /v1/candidates, decides through
+// /v1/nodes|links/{id}/review. All server data is inserted as text. The token lives in the shell.
 (function () {
   "use strict";
   const R = window.AMReview;
-  const state = {
-    token: null, canDecide: false, clientId: null,
-    filter: { kind: "node", status: "candidate" },
-    items: [], total: 0, nextCursor: null, hasMore: false,
-    busy: new Set(), expanded: new Set(),
-    timeline: [], olderCursor: null, olderMore: false,
-  };
+  const S = window.AMShell;
   const $ = (id) => document.getElementById(id);
+  const state = {
+    filter: { kind: "all", status: "candidate" },
+    items: [], total: 0, nextCursor: null, hasMore: false,
+    busy: new Set(), expanded: new Set(), focus: null,
+  };
 
   function el(tag, attrs, ...children) {
     const node = document.createElement(tag);
@@ -26,44 +24,9 @@
     }
     return node;
   }
-
-  function say(text, kind) {
-    const box = $("message");
-    box.textContent = text || "";
-    box.className = "message" + (kind === "error" ? " error" : "");
-  }
-
-  class ApiError extends Error {
-    constructor(status, message) { super(message); this.status = status; }
-  }
-
-  async function call(method, path, body) {
-    if (!state.token) throw new ApiError(0, "Nejste připojeni.");
-    const response = await fetch(path, {
-      method, cache: "no-store",
-      headers: Object.assign({ Authorization: "Bearer " + state.token }, body ? { "Content-Type": "application/json" } : {}),
-      body: body ? JSON.stringify(body) : undefined,
-    });
-    if (response.status === 401) { disconnect(); throw new ApiError(401, "Token není platný nebo byl odvolán. Připojte se znovu."); }
-    if (response.status === 403) throw new ApiError(403, "Token nemá potřebné oprávnění.");
-    if (response.status === 409) {
-      const detail = await response.json().catch(() => ({}));
-      throw new ApiError(409, detail.detail || "Stav se mezitím změnil.");
-    }
-    if (response.status === 503) {
-      const detail = await response.json().catch(() => ({}));
-      throw new ApiError(503, detail.detail || "Služba je dočasně nedostupná.");
-    }
-    if (!response.ok) throw new ApiError(response.status, "Požadavek selhal (" + response.status + ").");
-    return response.json();
-  }
-
-  function disconnect() {
-    state.token = null; state.canDecide = false; state.items = []; state.timeline = [];
-    state.hasMore = false; state.olderMore = false; state.expanded.clear(); state.busy.clear();
-    $("who").textContent = ""; $("disconnect").hidden = true;
-    render();
-  }
+  const call = (...args) => S.call(...args);
+  const say = (text, kind) => S.say(text, kind === "error");
+  const idOf = (item) => item.subject.kind + ":" + item.subject.identifier;
 
   function queueQuery(cursor) {
     const p = new URLSearchParams({ kind: state.filter.kind, status: state.filter.status, limit: "25" });
@@ -71,23 +34,23 @@
     return "/v1/candidates?" + p;
   }
 
-  async function loadQueue(append) {
+  async function load(params, append) {
+    const focus = params && params.focus;
+    if (focus) {
+      state.focus = await call("GET", "/v1/candidates/" + focus.kind + "/" + focus.id);
+      return;
+    }
+    state.focus = null;
     const page = await call("GET", queueQuery(append ? state.nextCursor : null));
     state.items = append ? state.items.concat(page.items) : page.items;
     state.total = page.total; state.hasMore = page.has_more; state.nextCursor = page.next_cursor;
   }
 
-  async function loadTimeline(older) {
-    const p = new URLSearchParams({ order: "desc", limit: "30", expand: "subject" });
-    if (older && state.olderCursor) p.set("cursor", state.olderCursor);
-    const page = await call("GET", "/v1/events?" + p);
-    state.timeline = older ? state.timeline.concat(page.events) : page.events;
-    state.olderCursor = page.next_cursor; state.olderMore = page.has_more;
-  }
-
   async function refresh() {
-    await Promise.all([loadQueue(false), loadTimeline(false)]);
+    const focus = state.focus ? { kind: state.focus.subject.kind, id: state.focus.subject.identifier } : null;
+    await load(focus ? { focus } : {});
     render();
+    S.refreshCount();
   }
 
   // -- rendering -------------------------------------------------------------------------
@@ -97,67 +60,81 @@
     const url = R.safeUrl(e.url);
     return el("blockquote", { class: "quote" },
       el("q", {}, e.quote),
-      el("div", { class: "meta" },
-        (R.ROLE[e.role] || e.role || "role neznámá") + " · " + (e.occurred_at || "čas neznámý"),
-        " · zpráva " + e.message_id + " · konverzace " + e.conversation_id + " (" + e.source_system + ") ",
-        el("button", { type: "button", class: "link", onclick: () => openSource(e) }, "detail zdroje"),
+      el("footer", { class: "meta" },
+        (R.ROLE[e.role] || e.role || "role neznámá") + " · " + R.when(e.occurred_at) + " · konverzace „" + e.conversation_id + "“ ",
+        el("button", { type: "button", class: "link", onclick: () => S.show("conversations", { source_system: e.source_system, conversation_id: e.conversation_id, highlight: e.episode_id }) }, "otevřít celou konverzaci"),
+        " · ",
+        el("button", { type: "button", class: "link", onclick: () => openSource(e) }, "zobrazit zprávu"),
         url ? [" · ", el("a", { href: url, rel: "noopener noreferrer", target: "_blank" }, "externí odkaz")] : null));
   }
 
+  function technical(item) {
+    const e = item.evidence[0];
+    return el("details", { class: "tech" },
+      el("summary", {}, "Technické údaje"),
+      el("div", {}, "Identifikátor návrhu: " + item.subject.identifier + " (" + item.subject.kind + ")"),
+      item.evidence.map((x) => el("div", {}, "Zdroj: zpráva " + x.message_id + ", konverzace " + x.conversation_id + " (" + x.source_system + "), epizoda " + x.episode_id)),
+      e ? null : el("div", {}, "Žádná živá evidence."),
+      item.audit ? el("div", {}, "Audit: událostí " + item.audit.events + ", poslední zaznamenaný stav " + (item.audit.last_recorded_state || "žádný")) : null);
+  }
+
   function itemCard(item) {
-    const id = item.subject.kind + ":" + item.subject.identifier;
-    const decision = R.decisionState(item, state.canDecide);
+    const id = idOf(item);
+    const decision = R.decisionState(item, S.canDecide);
     const busy = state.busy.has(id);
     const open = state.expanded.has(id);
     const shown = open ? item.evidence : item.evidence.slice(0, 1);
     const buttons = el("div", { class: "actions" },
       el("button", { type: "button", class: "ok", disabled: !decision.allowed || busy, onclick: () => decide(item, "confirmed") }, busy ? "Probíhá…" : "Potvrdit"),
       el("button", { type: "button", class: "no", disabled: !decision.allowed || busy, onclick: () => decide(item, "rejected") }, busy ? "Probíhá…" : "Zamítnout"));
+    const inMap = item.subject.kind === "node"
+      ? el("button", { type: "button", class: "link", onclick: () => S.show("map", { tab: "themes", focusNode: item.subject.identifier }) }, "Ukázat na mapě témat")
+      : null;
     return el("li", { class: "card item " + item.status + (busy ? " busy" : ""), "data-id": id },
-      el("div", { class: "kindline" }, R.KIND[item.candidate_kind] || item.candidate_kind),
-      el("div", { class: "title" }, R.title(item), " ", badge(item.status)),
-      item.summary ? el("p", {}, item.summary) : null,
-      item.proposal ? el("div", { class: "meta" }, "Skóre " + item.proposal.score + ": " + item.proposal.reason) : null,
-      el("div", { class: "origin" }, item.contributions.length
-        ? item.contributions.map((c) => el("div", {}, "• " + R.originText(c)))
-        : el("div", {}, "Původ není v auditu doložen.")),
-      !item.audit.consistent && item.status === "candidate" ? el("div", { class: "warn" }, "Audit nesouhlasí s aktuálním stavem.") : null,
-      el("div", {}, shown.length ? shown.map(evidenceBlock) : el("div", { class: "meta" }, "Žádná živá evidence.")),
+      el("div", { class: "kindline" }, R.KIND[item.candidate_kind] || item.candidate_kind, " ", badge(item.status)),
+      el("h3", { class: "title" }, R.title(item)),
+      item.summary ? el("p", { class: "summary-text" }, item.summary) : null,
+      item.proposal ? el("p", { class: "meta" }, "Skóre " + item.proposal.score + ": " + item.proposal.reason) : null,
+      el("div", { class: "evidence" }, shown.length ? shown.map(evidenceBlock) : el("p", { class: "meta" }, "Žádná živá evidence.")),
       item.evidence.length > 1
         ? el("button", { type: "button", class: "link evidence-extra", onclick: () => { open ? state.expanded.delete(id) : state.expanded.add(id); render(); } },
-            open ? "Skrýt ostatní evidence" : "Zobrazit všech " + item.evidence.length + " evidencí")
+            open ? "Skrýt ostatní citace" : "Zobrazit všech " + item.evidence.length + " citací")
         : null,
-      item.decision ? el("div", { class: "meta" }, "Rozhodl " + item.decision.actor.identifier + " (ověřeno tokenem) · " + item.decision.recorded_at) : null,
+      el("div", { class: "origin" }, item.contributions.length
+        ? item.contributions.map((c) => el("div", {}, "Původ: " + R.originText(c)))
+        : el("div", {}, "Původ není v auditu doložen.")),
+      !item.audit.consistent && item.status === "candidate" ? el("div", { class: "warn" }, "Audit nesouhlasí s aktuálním stavem.") : null,
+      item.decision ? el("p", { class: "meta" }, "Rozhodl " + item.decision.actor.identifier + " (ověřeno tokenem) · " + R.when(item.decision.recorded_at)) : null,
       buttons,
-      decision.allowed ? null : el("div", { class: "why" }, decision.reason));
+      decision.allowed ? null : el("div", { class: "why" }, decision.reason),
+      inMap ? el("div", { class: "more-links" }, inMap) : null,
+      technical(item));
   }
 
-  function renderQueue() {
+  function render() {
     const list = $("queue");
     list.replaceChildren();
-    if (!state.token) { $("queue-info").textContent = "Připojte se tokenem."; $("more").hidden = true; return; }
+    const bar = $("focus-bar");
+    if (!S.connected) {
+      $("queue-info").textContent = "Připojte se tokenem – bez něj se nic nezobrazí.";
+      $("more").hidden = true; bar.hidden = true; $("source-pane").replaceChildren();
+      return;
+    }
+    if (state.focus) {
+      bar.hidden = false; bar.replaceChildren(
+        "Zobrazen jeden návrh (otevřeno z jiného pohledu). ",
+        el("button", { type: "button", class: "link", onclick: () => { state.focus = null; refresh().catch((e) => say(e.message, "error")); } }, "Zpět na celou frontu"));
+      $("queue-info").textContent = "";
+      list.append(itemCard(state.focus));
+      $("more").hidden = true;
+      return;
+    }
+    bar.hidden = true;
     $("queue-info").textContent = "Zobrazeno " + state.items.length + " z " + state.total + ".";
     if (!state.items.length) list.append(el("li", { class: "empty" }, "Žádní kandidáti v tomto filtru."));
     for (const item of state.items) list.append(itemCard(item));
     $("more").hidden = !state.hasMore;
   }
-
-  function renderTimeline() {
-    const list = $("timeline");
-    list.replaceChildren();
-    $("timeline-info").textContent = state.token ? "Událost se zobrazí až po skutečném dokončení operace. Nejnovější nahoře." : "";
-    for (const event of state.timeline) {
-      const row = R.eventRow(event);
-      const css = event.type.replace("candidate.", "t-").replace("context.assembled", "t-context").replace("source.deleted", "t-deleted");
-      list.append(el("li", { class: row.known ? css : "t-unknown" },
-        el("strong", {}, row.label), " · ", row.subject,
-        el("div", {}, row.summary),
-        el("div", { class: "when" }, "zapsáno " + row.when + " · vznik " + row.occurred + " · " + row.actor + (row.sources ? " · " + row.sources : ""))));
-    }
-    $("older").hidden = !state.olderMore;
-  }
-
-  function render() { renderQueue(); renderTimeline(); if (!state.token) $("source-pane").replaceChildren(); }
 
   async function openSource(evidence) {
     const pane = $("source-pane");
@@ -165,8 +142,8 @@
       const data = await call("GET", "/v1/episodes/" + evidence.episode_id);
       pane.replaceChildren(
         el("h3", {}, "Původní zpráva"),
-        el("div", { class: "meta" }, data.role + " · " + data.occurred_at + " · " + data.source_system + " / " + data.conversation_id + " / " + data.message_id),
-        el("p", { class: "source-text" }, window.AMLogic.quoteSegments(data.content, evidence.quote).map((s) => (s.mark ? el("mark", {}, s.text) : s.text))),
+        el("div", { class: "meta" }, (R.ROLE[data.role] || data.role) + " · " + R.when(data.occurred_at) + " · konverzace „" + data.conversation_id + "“"),
+        el("p", { class: "source-text" }, R.markQuotes(data.content, [evidence.quote]).map((s) => (s.mark ? el("mark", {}, s.text) : s.text))),
         el("button", { type: "button", class: "link", onclick: () => pane.replaceChildren() }, "zavřít"));
     } catch (error) {
       say("Zdroj nelze zobrazit: " + (error.status === 404 ? "byl smazán." : error.message), "error");
@@ -175,7 +152,7 @@
 
   // -- decisions ---------------------------------------------------------------------------
   async function decide(item, wanted) {
-    const id = item.subject.kind + ":" + item.subject.identifier;
+    const id = idOf(item);
     if (state.busy.has(id)) return;
     state.busy.add(id); render(); say("");
     const path = (item.subject.kind === "node" ? "/v1/nodes/" : "/v1/links/") + item.subject.identifier + "/review";
@@ -191,32 +168,25 @@
       else if (error.status !== 401) say("Rozhodnutí se nepodařilo potvrdit: " + error.message + " Data jsou obnovena; ověřte stav.", "error");
     } finally {
       state.busy.delete(id);
-      if (state.token) { try { await refresh(); } catch (error) { say("Obnovení selhalo: " + error.message, "error"); } }
+      if (S.connected) { try { await refresh(); } catch (error) { say("Obnovení selhalo: " + error.message, "error"); } }
     }
   }
 
-  // -- wiring ------------------------------------------------------------------------------
-  $("connect").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    state.token = $("token").value.trim(); $("token").value = "";
-    try {
-      const who = await call("GET", "/v1/whoami");
-      state.clientId = who.client_id; state.canDecide = who.permissions.includes("admin");
-      $("who").textContent = "Připojeno jako " + who.client_id + " · oprávnění: " + who.permissions.join(", ") +
-        (state.canDecide ? "" : " · jen prohlížení");
-      $("disconnect").hidden = false;
-      await refresh();
-      say("Připojeno.");
-    } catch (error) {
-      if (state.token) disconnect();
-      say(error.message, "error");
-    }
+  S.register("review", {
+    async load(params) { await load(params); },
+    async show(params) {
+      if (params && params.focus) { await load(params); }
+      else if (state.focus && !(params && params.focus)) { state.focus = null; await load({}); }
+      render();
+    },
+    clear() {
+      state.items = []; state.total = 0; state.hasMore = false; state.focus = null;
+      state.expanded.clear(); state.busy.clear(); render();
+    },
   });
-  $("disconnect").addEventListener("click", () => { disconnect(); say("Odpojeno, token byl zapomenut."); });
-  $("reload").addEventListener("click", () => refresh().catch((e) => say(e.message, "error")));
-  $("f-kind").addEventListener("change", (e) => { state.filter.kind = e.target.value; refresh().catch((x) => say(x.message, "error")); });
-  $("f-status").addEventListener("change", (e) => { state.filter.status = e.target.value; refresh().catch((x) => say(x.message, "error")); });
-  $("more").addEventListener("click", () => loadQueue(true).then(render).catch((e) => say(e.message, "error")));
-  $("older").addEventListener("click", () => loadTimeline(true).then(render).catch((e) => say(e.message, "error")));
-  render();
+
+  $("reload").addEventListener("click", () => { state.focus = null; refresh().catch((e) => say(e.message, "error")); });
+  $("f-kind").addEventListener("change", (e) => { state.filter.kind = e.target.value; state.focus = null; refresh().catch((x) => say(x.message, "error")); });
+  $("f-status").addEventListener("change", (e) => { state.filter.status = e.target.value; state.focus = null; refresh().catch((x) => say(x.message, "error")); });
+  $("more").addEventListener("click", () => load({}, true).then(render).catch((e) => say(e.message, "error")));
 })();

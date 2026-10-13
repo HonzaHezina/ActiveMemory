@@ -29,7 +29,7 @@ uv run active-memory init
 uv run active-memory serve
 ```
 
-Fronta kandidátů: otevři `http://127.0.0.1:8080/ui/review` a vlož token (jen v paměti stránky).
+Fronta kandidátů: otevři `http://127.0.0.1:8080/ui` a vlož token (jen v paměti stránky).
 Demo kandidátů ke schválení: `uv run python scripts/demo_review_queue.py` (token v `MEMORY_CLIENT_API_KEY`).
 
 V novém terminálu ve stejném adresáři:

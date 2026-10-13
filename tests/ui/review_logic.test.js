@@ -98,3 +98,16 @@ test("link titles name both ends and tolerate a missing end", () => {
     source: { label: "Neo4j" }, target: null });
   assert.equal(R.title(link), "Neo4j – nahrazuje – (uzel nedostupný)");
 });
+
+test("markQuotes marks every quote found, merges overlaps and keeps text as text", () => {
+  const parts = R.markQuotes("Chci paměť a kontrolu nad ní. <b>x</b>", ["paměť", "kontrolu nad ní", "neexistuje", "ní. <b>"]);
+  assert.deepEqual(parts.filter((p) => p.mark).map((p) => p.text), ["paměť", "kontrolu nad ní. <b>"]);
+  assert.equal(parts.map((p) => p.text).join(""), "Chci paměť a kontrolu nad ní. <b>x</b>");
+  assert.deepEqual(R.markQuotes("beze změny", ["jiné"]), [{ text: "beze změny", mark: false }]);
+});
+
+test("when formats real times and admits unknown ones", () => {
+  assert.equal(R.when(null), "čas neznámý");
+  assert.equal(R.when("není datum"), "čas neznámý");
+  assert.match(R.when("2026-10-01T10:00:00Z"), /2026/);
+});

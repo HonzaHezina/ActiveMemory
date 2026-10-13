@@ -3,8 +3,8 @@
 (function () {
   "use strict";
   const L = window.AMLogic;
+  const S = window.AMShell;
   const state = {
-    token: null,
     map: null,
     links: [],
     tab: "themes",
@@ -36,33 +36,28 @@
     return node;
   }
 
-  function say(text, isError) {
-    const box = document.getElementById("message");
-    box.textContent = text || "";
-    box.className = "message" + (isError ? " error" : "");
-  }
-
-  async function call(method, path, body) {
-    const response = await fetch(path, {
-      method,
-      headers: Object.assign(
-        { Authorization: "Bearer " + state.token },
-        body ? { "Content-Type": "application/json" } : {}
-      ),
-      body: body ? JSON.stringify(body) : undefined,
-      cache: "no-store",
-    });
-    if (response.status === 401) throw new Error("Token není platný.");
-    if (response.status === 403) throw new Error("Token nemá oprávnění admin potřebné pro tuto akci.");
-    if (!response.ok) throw new Error("Požadavek selhal (" + response.status + ").");
-    return response.json();
-  }
+  const say = (text, isError) => S.say(text, isError);
+  const call = (...args) => S.call(...args);
 
   async function load() {
     const [map, links] = await Promise.all([call("GET", "/v1/map?limit=5000"), call("GET", "/v1/links?limit=2000")]);
     state.map = map;
     state.links = links.links;
     render();
+  }
+
+  // Opens a node in the theme view: a theme directly, anything else through its ABOUT edge.
+  function focusNode(nodeId) {
+    const node = state.map.nodes.find((n) => n.id === nodeId);
+    if (!node) { say("Uzel už na mapě není (nebo je mapa zkrácena limitem).", true); return; }
+    if (node.kind === "Theme") { state.selectedTheme = node.id; state.selectedNode = null; }
+    else {
+      const about = state.map.edges.find((e) => e.relation === "ABOUT" && e.source_id === node.id);
+      state.selectedTheme = about ? about.target_id : null;
+      state.selectedNode = node.id;
+      if (!about) say("Tento uzel zatím nepatří k žádnému tématu.", true);
+    }
+    state.filter.status = "all"; state.source = null;
   }
 
   function badge(status) {
@@ -165,10 +160,13 @@
       el(
         "div",
         { class: "meta" },
-        `${evidence.role || "?"} · ${evidence.occurred_at ? evidence.occurred_at.slice(0, 16).replace("T", " ") : "?"}`,
-        evidence.source_system ? ` · ${evidence.source_system} / ${evidence.conversation_id}` : "",
-        " ",
-        el("button", { type: "button", class: "link", onclick: () => openSource(evidence) }, "zobrazit zdroj")
+        `${evidence.role || "?"} · ${window.AMReview.when(evidence.occurred_at)}`,
+        evidence.conversation_id ? ` · konverzace „${evidence.conversation_id}“ ` : " ",
+        evidence.conversation_id
+          ? el("button", { type: "button", class: "link", onclick: () => S.show("conversations", { source_system: evidence.source_system, conversation_id: evidence.conversation_id, highlight: evidence.episode_id }) }, "otevřít konverzaci")
+          : null,
+        evidence.conversation_id ? " · " : "",
+        el("button", { type: "button", class: "link", onclick: () => openSource(evidence) }, "zobrazit zprávu")
       )
     );
   }
@@ -310,27 +308,22 @@
   function render() {
     if (!state.map) return;
     renderSummary();
-    for (const button of document.querySelectorAll("#tabs button")) {
-      button.classList.toggle("active", button.dataset.tab === state.tab);
-    }
     if (state.tab === "themes") { renderThemes(); renderThemeDetail(); }
     else renderProposals();
     renderSource();
   }
 
-  document.getElementById("connect").addEventListener("submit", async (event) => {
-    event.preventDefault();
-    state.token = document.getElementById("token").value.trim();
-    document.getElementById("token").value = "";
-    try {
-      await load();
-      say("Připojeno.");
-    } catch (error) {
-      state.token = null;
-      say(error.message, true);
-    }
+  S.register("map", {
+    async load() { await load(); },
+    show(params) {
+      if (params && params.tab) state.tab = params.tab;
+      if (params && params.focusNode && state.map) { state.tab = "themes"; focusNode(params.focusNode); }
+      state.source = null;
+      render();
+    },
+    clear() {
+      state.map = null; state.links = []; state.selectedTheme = null; state.selectedNode = null; state.source = null;
+      for (const id of ["pane-list", "pane-detail", "pane-source", "summary"]) document.getElementById(id).replaceChildren();
+    },
   });
-  for (const button of document.querySelectorAll("#tabs button")) {
-    button.addEventListener("click", () => { state.tab = button.dataset.tab; state.source = null; render(); });
-  }
 })();

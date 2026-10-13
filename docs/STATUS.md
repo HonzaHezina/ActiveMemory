@@ -27,7 +27,7 @@ Dříve: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokáln�
 | Deterministická konsolidace counts/activity | implementováno |
 | Autonomní dreaming/semantic clustering | backlog AM-005; není hotové |
 | Kontrakt událostí v1 nad provozním auditem, `GET /v1/events`, MCP `memory_list_events` | implementováno; append-only přes službu + SQLite triggery; **graf a SQLite nejsou atomické** (viz EVENTS.md) |
-| Fronta kandidátů + časová osa (`/ui/review`) | implementováno; testy API, Node testy logiky, e2e v jsdom; **ne v reálném prohlížeči** |
+| Jednostránkové UI s menu (Ke schválení, Konverzace, Témata, Návrhy vazeb, Časová osa) a propojením konverzace ↔ návrh ↔ mapa | implementováno; testy API, Node testy logiky, e2e v jsdom (přepínání pohledů, propojení, rozhodnutí); čtení konverzací je O(N) nad projekcí; **uživatelsky zkoušeno jen ručně v jednom prohlížeči, bez systematického testu** |
 | Původ návrhu (dodaná extrakce / model / systém / ruční) | zaznamenán od zavedení auditu; starší kandidáti mají jen `candidate.snapshot` s neznámým původem |
 | Webové UI pro myšlenkovou mapu (`/ui`) | implementováno (AM-004): témata, vývoj ve zdrojích, původní zpráva se zvýrazněnou citací, schvalování uzlů/vazeb, fronta návrhů; ověřeno jednotkovými testy logiky, testy hlaviček/CSP a e2e v jsdom; **v reálném prohlížeči vizuálně neověřeno** |
 | JSONL import normalizovaných zpráv | implementováno |
