@@ -13,6 +13,8 @@ jobs:
       - run: uv run --no-sync ruff check .
       - run: uv run --no-sync ruff format --check .
       - run: uv run --no-sync pytest -q
+      - name: Prepare non-secret environment for Compose validation
+        run: cp .env.example .env
       - run: docker compose --env-file .env.example config --quiet
       - run: docker compose --env-file .env.example -f compose.yaml -f compose.graph.yaml config --quiet
         env:
