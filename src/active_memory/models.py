@@ -112,6 +112,8 @@ class Query(Strict):
 
 class Review(Strict):
     status: Literal["confirmed", "rejected"]
+    # Optimistic concurrency: the state the client believed it was changing. Mismatch -> 409.
+    expected_status: Literal["candidate", "confirmed", "rejected"] | None = None
 
 
 class LinkInput(Strict):

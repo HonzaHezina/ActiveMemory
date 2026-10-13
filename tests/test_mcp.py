@@ -11,6 +11,7 @@ def test_mcp_discovery_and_write_opt_in():
         "memory_get_context",
         "memory_map",
         "memory_get_source",
+        "memory_list_events",
     }
     writable = create_mcp("http://127.0.0.1:8080", "fake-key", allow_write=True)
     tools = asyncio.run(writable.list_tools())

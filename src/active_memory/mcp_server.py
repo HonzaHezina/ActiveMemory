@@ -1,4 +1,5 @@
 import os
+from urllib.parse import urlencode
 
 import httpx
 from mcp.server.fastmcp import FastMCP
@@ -48,6 +49,20 @@ def create_mcp(base_url, api_key, allow_write=False):
 
         source_id = str(UUID(episode_id))
         return await call("GET", f"/v1/episodes/{source_id}")
+
+    @mcp.tool()
+    async def memory_list_events(
+        types: list[str] | None = None,
+        limit: int = 50,
+        cursor: int | None = None,
+        order: str = "asc",
+    ):
+        """Read the append-only event log (candidate created/decided, context assembled, source
+        deleted). Read-only; events reference sources by id and never contain message text."""
+        query = [("limit", limit), ("order", order)] + [("type", t) for t in types or []]
+        if cursor is not None:
+            query.append(("cursor", cursor))
+        return await call("GET", "/v1/events?" + urlencode(query))
 
     if allow_write:
 

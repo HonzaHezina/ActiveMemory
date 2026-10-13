@@ -1,10 +1,13 @@
 import asyncio
 import hashlib
 import hmac
+import re
 from contextlib import asynccontextmanager, suppress
+from datetime import datetime, timezone
 from pathlib import Path
+from typing import Literal
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi import Query as URLQuery
 from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -13,7 +16,7 @@ from pydantic import ValidationError
 from .engine import build_context, public_node, search
 from .journal import Conflict
 from .models import LinkInput, Message, Query, Review, utcnow
-from .service import MemoryService
+from .service import AuditGap, MemoryService
 from .settings import Settings
 from .similarity import clusters
 
@@ -37,6 +40,9 @@ def create_app(settings=None):
     app = FastAPI(title="Active Memory", version="0.1.0", lifespan=lifespan)
     app.state.memory = service
     bearer = HTTPBearer(auto_error=False)
+
+    def correlation(value: str | None = Header(default=None, alias="X-Correlation-Id")):
+        return value if value and re.fullmatch(r"[\w.:@/+=-]{1,200}", value) else None
 
     def principal(credentials: HTTPAuthorizationCredentials = Depends(bearer)):
         if credentials is None:
@@ -62,6 +68,16 @@ def create_app(settings=None):
     @app.exception_handler(Conflict)
     async def conflict_handler(request, error):
         return JSONResponse(status_code=409, content={"detail": str(error)})
+
+    @app.exception_handler(AuditGap)
+    async def audit_gap_handler(request, error):
+        detail = (
+            "the operation was applied but its audit event was not recorded; "
+            "the next start reconciles the log with an explicit snapshot"
+            if error.applied
+            else "context withheld because its audit event could not be recorded"
+        )
+        return JSONResponse(status_code=503, content={"detail": detail})
 
     @app.exception_handler(KeyError)
     async def missing_handler(request, error):
@@ -149,12 +165,19 @@ def create_app(settings=None):
                 raise HTTPException(503, "graph retrieval unavailable") from None
         return {"items": items, "inferred_facts": facts, "scope": settings.scope}
 
+    @app.get("/v1/whoami")
+    def whoami(client=Depends(principal)):
+        """What the presented token may do; the server still enforces every call."""
+        return {"client_id": client["id"], "permissions": sorted(client["permissions"])}
+
     @app.post("/v1/context")
-    def context(request: Query, client=Depends(read)):
+    def context(request: Query, client=Depends(read), correlation_id=Depends(correlation)):
         # Automatic context uses only reviewed active nodes by default.
         result = build_context(
             [public_node(n) for n in search(service.state, request)], request.max_chars
         )
+        # Fail closed: nothing is released unless the assembly could be recorded.
+        service.record_context(client["id"], request, result, correlation_id)
         return {
             "scope": settings.scope,
             **result,
@@ -184,16 +207,86 @@ def create_app(settings=None):
         }
 
     @app.post("/v1/nodes/{node_id}/review")
-    async def review(node_id: str, request: Review, client=Depends(admin)):
-        return await service.review(node_id, request.status, client["id"])
+    async def review(
+        node_id: str, request: Review, client=Depends(admin), correlation_id=Depends(correlation)
+    ):
+        node = await service.review(
+            node_id, request.status, client["id"], request.expected_status, correlation_id
+        )
+        return public_node(node)
 
     @app.post("/v1/links", status_code=201)
     async def link(request: LinkInput, client=Depends(admin)):
         return await service.add_link(request, client["id"])
 
     @app.post("/v1/links/{edge_id}/review")
-    async def review_link(edge_id: str, request: Review, client=Depends(admin)):
-        return await service.review_link(edge_id, request.status, client["id"])
+    async def review_link(
+        edge_id: str, request: Review, client=Depends(admin), correlation_id=Depends(correlation)
+    ):
+        return await service.review_link(
+            edge_id, request.status, client["id"], request.expected_status, correlation_id
+        )
+
+    @app.get("/v1/candidates")
+    def candidates(
+        kind: Literal["all", "node", "link"] = "all",
+        status: Literal["all", "candidate", "confirmed", "rejected"] = "candidate",
+        relation: str | None = None,
+        cursor: str | None = None,
+        limit: int = URLQuery(default=25, ge=1, le=100),
+        client=Depends(read),
+    ):
+        """Review queue: projection items with evidence, contributions and audit consistency."""
+        return service.candidates(kind, status, relation, cursor, limit)
+
+    @app.get("/v1/candidates/{kind}/{item_id}")
+    def candidate(kind: Literal["node", "link"], item_id: str, client=Depends(read)):
+        return service.candidate(kind, item_id)
+
+    @app.get("/v1/events")
+    def events(
+        type: list[str] = URLQuery(default=[]),
+        from_: datetime | None = URLQuery(default=None, alias="from"),
+        to: datetime | None = None,
+        subject_kind: Literal["node", "link", "source", "memory_scope"] | None = None,
+        subject_id: str | None = None,
+        cursor: int | None = URLQuery(default=None, ge=0),
+        limit: int = URLQuery(default=50, ge=1, le=200),
+        order: Literal["asc", "desc"] = "asc",
+        expand: Literal["subject"] | None = None,
+        client=Depends(read),
+    ):
+        """Public event contract v1; see docs/EVENTS.md."""
+        from .events import EVENT_TYPES
+
+        if bad := [t for t in type if t not in EVENT_TYPES]:
+            raise HTTPException(422, f"unknown event type: {bad[0]}")
+        for stamp in (from_, to):
+            if stamp is not None and stamp.tzinfo is None:
+                raise HTTPException(422, "timestamps require a timezone")
+        if bool(subject_kind) != bool(subject_id):
+            raise HTTPException(422, "subject_kind and subject_id go together")
+        since = from_.astimezone(timezone.utc).timestamp() if from_ else None
+        until = to.astimezone(timezone.utc).timestamp() if to else None
+        page, more = service.journal.events(
+            tuple(type),
+            since,
+            until,
+            f"{subject_kind}:{subject_id}" if subject_kind else None,
+            cursor,
+            limit,
+            order,
+        )
+        if expand == "subject":
+            for item in page:
+                item["subject_view"] = service.subject_view(item["subject"])
+        return {
+            "schema_version": 1,
+            "events": page,
+            "has_more": more,
+            "next_cursor": str(page[-1]["sequence"]) if page else (str(cursor) if cursor else None),
+            "order": order,
+        }
 
     @app.get("/v1/links")
     def links(
@@ -243,9 +336,9 @@ def create_app(settings=None):
         return await service.consolidate(client["id"])
 
     @app.delete("/v1/episodes/{episode_id}")
-    async def erase(episode_id: str, client=Depends(admin)):
+    async def erase(episode_id: str, client=Depends(admin), correlation_id=Depends(correlation)):
         try:
-            await service.erase(episode_id, client["id"])
+            await service.erase(episode_id, client["id"], correlation_id)
         except KeyError:
             raise HTTPException(404, "source not found") from None
         except Exception:

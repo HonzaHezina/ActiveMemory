@@ -4,7 +4,9 @@ import sqlite3
 import time
 from contextlib import contextmanager
 from pathlib import Path
-from uuid import NAMESPACE_URL, uuid5
+from uuid import NAMESPACE_URL, uuid4, uuid5
+
+from . import events as ev
 
 
 class Conflict(Exception):
@@ -33,10 +35,27 @@ class Journal:
                   id INTEGER PRIMARY KEY, time REAL NOT NULL, actor TEXT NOT NULL,
                   action TEXT NOT NULL, target TEXT NOT NULL);
             """)
+            self._migrate_events(db)
             row = db.execute("SELECT value FROM metadata WHERE key='scope'").fetchone()
             if row and row[0] != scope:
                 raise ValueError("data directory belongs to a different memory scope")
             db.execute("INSERT OR IGNORE INTO metadata VALUES('scope',?)", (scope,))
+
+    @staticmethod
+    def _migrate_events(db):
+        """Add the structured-event columns to the existing audit table; old rows stay untouched."""
+        columns = {r[1] for r in db.execute("PRAGMA table_info(audit)")}
+        for name in ("event", "event_id", "subject"):
+            if name not in columns:
+                db.execute(f"ALTER TABLE audit ADD COLUMN {name} TEXT")
+        db.executescript("""
+            CREATE UNIQUE INDEX IF NOT EXISTS audit_event_id ON audit(event_id);
+            CREATE INDEX IF NOT EXISTS audit_subject ON audit(subject, id);
+            CREATE TRIGGER IF NOT EXISTS audit_append_only_update BEFORE UPDATE ON audit
+              BEGIN SELECT RAISE(ABORT, 'audit/events are append-only'); END;
+            CREATE TRIGGER IF NOT EXISTS audit_append_only_delete BEFORE DELETE ON audit
+              BEGIN SELECT RAISE(ABORT, 'audit/events are append-only'); END;
+        """)
 
     @contextmanager
     def db(self):
@@ -103,8 +122,11 @@ class Journal:
             )
         return row["episode_id"]
 
-    def finish(self, episode_id, error=None):
+    def finish(self, episode_id, error=None, events=()):
+        """Mark the job; ``events`` are written in the same SQLite transaction as a successful finish."""
         with self.db() as db:
+            for body in events if error is None else ():
+                self.append_event(body, db)
             row = db.execute(
                 "SELECT attempts FROM jobs WHERE episode_id=?", (episode_id,)
             ).fetchone()
@@ -137,20 +159,158 @@ class Journal:
                 self.audit(actor, "retry", episode_id, db)
         return bool(count)
 
-    def erase(self, episode_id, actor):
+    def erase(self, episode_id, actor, event=None):
         with self.db() as db:
             db.execute("PRAGMA secure_delete=ON")
             db.execute("UPDATE episodes SET deleted=1,payload='{}' WHERE id=?", (episode_id,))
             db.execute("DELETE FROM jobs WHERE episode_id=?", (episode_id,))
-            self.audit(actor, "erase", episode_id, db)
+            self.audit(actor, "erase", episode_id, db, event=event)
         # Online copies/backups must be handled by the runbook; this is logical live deletion.
 
-    def audit(self, actor, action, target, db=None):
-        if db is not None:
-            db.execute(
-                "INSERT INTO audit(time,actor,action,target) VALUES(?,?,?,?)",
-                (time.time(), actor, action, target),
-            )
-        else:
+    def audit(self, actor, action, target, db=None, event=None):
+        """Append one audit row; with ``event`` it is also a public event. Returns its sequence."""
+        if db is None:
             with self.db() as connection:
-                self.audit(actor, action, target, connection)
+                return self.audit(actor, action, target, connection, event)
+        document = event_id = subject = None
+        if event is not None:
+            event_id = "ev_" + uuid4().hex
+            subject = f"{event['subject']['kind']}:{event['subject']['identifier']}"
+            document = json.dumps(event, ensure_ascii=False, sort_keys=True)
+        cursor = db.execute(
+            "INSERT INTO audit(time,actor,action,target,event,event_id,subject) "
+            "VALUES(?,?,?,?,?,?,?)",
+            (time.time(), actor, action, target, document, event_id, subject),
+        )
+        return cursor.lastrowid
+
+    def append_event(self, event, db=None):
+        """Record a public event (and its operational audit row) after the operation completed."""
+        return self.audit(
+            event["actor"]["identifier"], event["type"], event["subject"]["identifier"], db, event
+        )
+
+    # -- reading events -------------------------------------------------------------------
+    def _public(self, row, deleted):
+        body = json.loads(row["event"])
+        provenance = [
+            {**ref, **({"deleted": ref["id"] in deleted} if ref["kind"] == "source" else {})}
+            for ref in body["provenance"]
+        ]
+        return {
+            "schema_version": ev.SCHEMA_VERSION,
+            "event_id": row["event_id"],
+            "sequence": row["id"],
+            "producer": ev.PRODUCER,
+            "type": body["type"],
+            "occurred_at": body["occurred_at"],
+            "recorded_at": ev.iso(row["time"]),
+            "actor": body["actor"],
+            "subject": body["subject"],
+            "previous_state": body["previous_state"],
+            "new_state": body["new_state"],
+            "provenance": provenance,
+            "correlation_id": body["correlation_id"],
+            "data": body["data"],
+        }
+
+    @staticmethod
+    def _deleted_among(db, rows):
+        ids = {
+            ref["id"]
+            for row in rows
+            for ref in json.loads(row["event"])["provenance"]
+            if ref["kind"] == "source"
+        }
+        if not ids:
+            return set()
+        marks = ",".join("?" * len(ids))
+        live = {
+            r[0]
+            for r in db.execute(
+                f"SELECT id FROM episodes WHERE deleted=0 AND id IN ({marks})", tuple(ids)
+            )
+        }
+        return ids - live
+
+    def events(
+        self, types=(), since=None, until=None, subject=None, cursor=None, limit=50, order="asc"
+    ):
+        """Page of public events; ``since``/``until`` are epoch seconds on recorded time [since, until)."""
+        where, args = ["event IS NOT NULL"], []
+        if types:
+            where.append(f"json_extract(event,'$.type') IN ({','.join('?' * len(types))})")
+            args += list(types)
+        if since is not None:
+            where.append("time>=?")
+            args.append(since)
+        if until is not None:
+            where.append("time<?")
+            args.append(until)
+        if subject:
+            where.append("subject=?")
+            args.append(subject)
+        if cursor is not None:
+            where.append("id>?" if order == "asc" else "id<?")
+            args.append(cursor)
+        sql = (
+            f"SELECT * FROM audit WHERE {' AND '.join(where)} "
+            f"ORDER BY id {'ASC' if order == 'asc' else 'DESC'} LIMIT ?"
+        )
+        with self.db() as db:
+            rows = db.execute(sql, (*args, limit + 1)).fetchall()
+            more = len(rows) > limit
+            rows = rows[:limit]
+            deleted = self._deleted_among(db, rows)
+            page = [self._public(r, deleted) for r in rows]
+        return page, more
+
+    def subject_events(self, subject):
+        with self.db() as db:
+            rows = db.execute(
+                "SELECT * FROM audit WHERE subject=? AND event IS NOT NULL ORDER BY id", (subject,)
+            ).fetchall()
+            deleted = self._deleted_among(db, rows)
+            return [self._public(r, deleted) for r in rows]
+
+    def first_sequences(self):
+        with self.db() as db:
+            return {
+                r[0]: r[1]
+                for r in db.execute(
+                    "SELECT subject, MIN(id) FROM audit WHERE event IS NOT NULL GROUP BY subject"
+                )
+            }
+
+    def last_state(self, subject):
+        """(new_state, sequence) of the newest event that set a state for the subject, else None."""
+        with self.db() as db:
+            row = db.execute(
+                "SELECT id, json_extract(event,'$.new_state') AS state FROM audit "
+                "WHERE subject=? AND event IS NOT NULL AND "
+                "json_extract(event,'$.new_state') IS NOT NULL ORDER BY id DESC LIMIT 1",
+                (subject,),
+            ).fetchone()
+        return (row["state"], row["id"]) if row else None
+
+    def has_contribution(self, subject, episode_id):
+        """True when a created/evidence_added event already cites this source for the subject."""
+        with self.db() as db:
+            rows = db.execute(
+                "SELECT event FROM audit WHERE subject=? AND event IS NOT NULL AND "
+                "json_extract(event,'$.type') IN ('candidate.created','candidate.evidence_added','candidate.snapshot')",
+                (subject,),
+            ).fetchall()
+        return any(
+            ref["id"] == episode_id and ref["kind"] == "source"
+            for row in rows
+            for ref in json.loads(row[0])["provenance"]
+        )
+
+    def ingest_client(self, episode_id):
+        with self.db() as db:
+            row = db.execute(
+                "SELECT actor FROM audit WHERE action='ingest' AND target=? ORDER BY id LIMIT 1",
+                (episode_id,),
+            ).fetchone()
+        return row[0] if row else None

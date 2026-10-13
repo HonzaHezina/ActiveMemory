@@ -1,10 +1,13 @@
 import asyncio
 import copy
 import re
+from urllib.parse import urlparse
+from uuid import uuid4
 
+from . import events as ev
 from .engine import add_extraction, consolidate, identity, remove_episode
 from .graph import Neo4jGraph, ReferenceGraph
-from .journal import Journal
+from .journal import Conflict, Journal
 from .models import Extraction, Message, utcnow
 from .providers import GraphitiAdapter, LLMExtractor, LLMRelationJudge, OpenAIEmbeddings
 from .similarity import (
@@ -17,6 +20,38 @@ from .similarity import (
     unit,
     usable_vector,
 )
+
+
+class AuditGap(Exception):
+    """The operation itself finished, but its event could not be recorded."""
+
+    def __init__(self, applied):
+        super().__init__("audit event not recorded")
+        self.applied = applied
+
+
+def principal(client_id):
+    # A bearer token authenticates a client. It does not prove a person pressed the button.
+    return {"kind": "human", "identifier": client_id, "assurance": "bearer_token"}
+
+
+SYSTEM = {"kind": "system", "identifier": ev.SYSTEM_ACTOR, "assurance": "internal"}
+
+
+def sources_of(record):
+    seen = []
+    for item in record["evidence"]:
+        if item["episode_id"] not in seen:
+            seen.append(item["episode_id"])
+    return [{"kind": "source", "id": i} for i in seen]
+
+
+def parse_cursor(cursor):
+    try:
+        sequence, kind, record_id = cursor.split(":", 2)
+        return (int(sequence), kind, record_id)
+    except ValueError:
+        raise ValueError("invalid cursor") from None
 
 
 class MemoryService:
@@ -40,6 +75,162 @@ class MemoryService:
     async def initialize(self):
         if self.graphiti:
             await self.graphiti.initialize()
+        self.reconcile_events()
+
+    # -- events ---------------------------------------------------------------------------
+    def record(self, event, applied=True):
+        """Write an event after its operation completed; surface a failed write explicitly."""
+        try:
+            return self.journal.append_event(event)
+        except Exception:
+            raise AuditGap(applied) from None
+
+    def reconcile_events(self):
+        """Make the projection and the event log agree without inventing history.
+
+        A candidate with no event, or whose state differs from its last state-setting event, gets
+        an explicit ``candidate.snapshot``: occurred_at is null (unknown) and recorded_at is when
+        this state was observed. Transitions that happened earlier are not reconstructed.
+        """
+        run = "reconcile-" + uuid4().hex[:12]
+        count = 0
+        for kind, records in (("node", self.state["nodes"]), ("link", self.state["edges"])):
+            for record in records.values():
+                subject = f"{kind}:{record['id']}"
+                last = self.journal.last_state(subject)
+                if last is not None and last[0] == record["status"]:
+                    continue
+                origin = "baseline_snapshot" if last is None else "reconciliation"
+                note = (
+                    "State observed when audit events were first enabled; earlier history unknown."
+                    if last is None
+                    else "Projection state differed from the last recorded event; transition unknown."
+                )
+                self.record(
+                    ev.build(
+                        "candidate.snapshot",
+                        actor=SYSTEM,
+                        subject={"kind": kind, "identifier": record["id"]},
+                        correlation_id=run,
+                        previous_state=None if last is None else last[0],
+                        new_state=record["status"],
+                        provenance=sources_of(record),
+                        data={"basis": origin, "note": note},
+                        occurred_at=None,
+                    )
+                )
+                count += 1
+        return count
+
+    def extraction_origin(self, episode_id, message):
+        client = self.journal.ingest_client(episode_id)
+        if message.extraction is not None:
+            return (
+                {"kind": "client_supplied_extraction", "supplied_by_client": client},
+                {
+                    "kind": "system",
+                    "identifier": f"client:{client}" if client else ev.SYSTEM_ACTOR,
+                    "assurance": "bearer_token" if client else "none",
+                },
+            )
+        host = urlparse(self.settings.model_base_url).hostname
+        return (
+            {
+                "kind": "llm_extraction",
+                "supplied_by_client": client,
+                "model": self.settings.model_name,
+                "provider": host,
+            },
+            {"kind": "model", "identifier": self.settings.model_name, "assurance": "internal"},
+        )
+
+    def contribution_events(self, state, episode_id, message):
+        """created / evidence_added events for everything this source contributed to; idempotent."""
+        origin, actor = self.extraction_origin(episode_id, message)
+        events = []
+        for kind, records in (("node", state["nodes"]), ("link", state["edges"])):
+            for record in records.values():
+                if not any(e["episode_id"] == episode_id for e in record["evidence"]):
+                    continue
+                subject = f"{kind}:{record['id']}"
+                if self.journal.has_contribution(subject, episode_id):
+                    continue
+                first = not self.journal.subject_events(subject)
+                common = {
+                    "actor": actor,
+                    "subject": {"kind": kind, "identifier": record["id"]},
+                    "correlation_id": episode_id,
+                    "provenance": sources_of(record),
+                }
+                if first:
+                    events.append(
+                        ev.build(
+                            "candidate.created",
+                            new_state=record["status"],
+                            data={
+                                "candidate_kind": record.get("kind") or record["relation"],
+                                "origin": origin,
+                                "evidence_count": len(record["evidence"]),
+                            },
+                            **common,
+                        )
+                    )
+                else:
+                    events.append(
+                        ev.build(
+                            "candidate.evidence_added",
+                            data={"origin": origin, "evidence_count": len(record["evidence"])},
+                            **common,
+                        )
+                    )
+        return events
+
+    def decision_event(self, kind, record, previous, status, actor, correlation_id):
+        return ev.build(
+            "candidate." + status,
+            actor=principal(actor),
+            subject={"kind": kind, "identifier": record["id"]},
+            previous_state=previous,
+            new_state=status,
+            provenance=sources_of(record),
+            correlation_id=correlation_id or uuid4().hex,
+            data={},
+        )
+
+    def proposal_events(self, edges, correlation_id):
+        events = []
+        for edge in edges:
+            method = edge["proposal"]["method"]
+            judge = method == "judge"
+            origin = {
+                "kind": method if method in {"judge", "temporal"} else "similarity",
+                "score": edge["proposal"]["score"],
+            }
+            if judge:
+                origin["model"] = self.settings.model_name
+                origin["provider"] = urlparse(self.settings.model_base_url).hostname
+            events.append(
+                ev.build(
+                    "candidate.created",
+                    actor={
+                        "kind": "model",
+                        "identifier": self.settings.model_name,
+                        "assurance": "internal",
+                    }
+                    if judge
+                    else SYSTEM,
+                    subject={"kind": "link", "identifier": edge["id"]},
+                    new_state="candidate",
+                    provenance=sources_of(edge),
+                    correlation_id=correlation_id,
+                    data={
+                        "candidate_kind": edge["relation"],
+                        "origin": origin,
+                        "evidence_count": len(edge["evidence"]),
+                    },
+                )
+            )
+        return events
 
     def ingest(self, message, actor):
         # Minimal known credential filter. This does not certify arbitrary raw messages as secret-free.
@@ -74,7 +265,11 @@ class MemoryService:
                 before = set(updated["nodes"])
                 add_extraction(updated, episode_id, message, extraction or Extraction())
                 self.commit(updated)
-                self.journal.finish(episode_id)
+                # Events and the done mark share one SQLite transaction. If it fails the job is
+                # retried and the idempotent contribution check writes only what is still missing.
+                self.journal.finish(
+                    episode_id, events=self.contribution_events(updated, episode_id, message)
+                )
                 if self.settings.auto_propose:
                     # Best effort and separate from ingestion: a provider failure must not fail the job.
                     try:
@@ -96,15 +291,24 @@ class MemoryService:
             if not processed:
                 await asyncio.sleep(self.settings.poll_seconds)
 
-    async def review(self, node_id, status, actor):
+    async def review(self, node_id, status, actor, expected=None, correlation_id=None):
         async with self.lock:
             if node_id not in self.state["nodes"]:
                 raise KeyError(node_id)
+            current = self.state["nodes"][node_id]["status"]
+            if expected is not None and expected != current:
+                raise Conflict(f"candidate is {current}, not {expected}")
+            if current == status:
+                return self.state["nodes"][node_id]  # repeated review: no change, no event
             updated = copy.deepcopy(self.state)
             updated["nodes"][node_id]["status"] = status
             # Review does not silently validate relations or other claims.
             self.commit(updated)
-            self.journal.audit(actor, "review_" + status, node_id)
+            self.record(
+                self.decision_event(
+                    "node", updated["nodes"][node_id], current, status, actor, correlation_id
+                )
+            )
             return updated["nodes"][node_id]
 
     async def add_link(self, link, actor):
@@ -127,13 +331,33 @@ class MemoryService:
                 "evidence": [{"episode_id": link.episode_id, "quote": link.quote}],
             }
             self.commit(updated)
-            self.journal.audit(actor, "link_proposal", edge_id)
-            return updated["edges"][edge_id]
+            edge = updated["edges"][edge_id]
+            self.record(
+                ev.build(
+                    "candidate.created",
+                    actor=principal(actor),
+                    subject={"kind": "link", "identifier": edge_id},
+                    new_state="candidate",
+                    provenance=sources_of(edge),
+                    correlation_id=uuid4().hex,
+                    data={
+                        "candidate_kind": edge["relation"],
+                        "origin": {"kind": "manual", "supplied_by_client": actor},
+                        "evidence_count": 1,
+                    },
+                )
+            )
+            return edge
 
-    async def review_link(self, edge_id, status, actor):
+    async def review_link(self, edge_id, status, actor, expected=None, correlation_id=None):
         async with self.lock:
             if edge_id not in self.state["edges"]:
                 raise KeyError(edge_id)
+            current = self.state["edges"][edge_id]["status"]
+            if expected is not None and expected != current:
+                raise Conflict(f"candidate is {current}, not {expected}")
+            if current == status:
+                return self.state["edges"][edge_id]
             updated = copy.deepcopy(self.state)
             edge = updated["edges"][edge_id]
             # A change relation is information; temporal windows remain explicit reviewed data.
@@ -141,7 +365,7 @@ class MemoryService:
             if status == "rejected" and edge.get("origin") == "proposal":
                 edge["rejected_at"] = utcnow().isoformat()
             self.commit(updated)
-            self.journal.audit(actor, "review_link_" + status, edge_id)
+            self.record(self.decision_event("link", edge, current, status, actor, correlation_id))
             return edge
 
     async def propose_links(self, actor):
@@ -199,6 +423,8 @@ class MemoryService:
         new, skipped = propose(updated, vectors, s.effective_threshold, verdicts, only_ids)
         updated["edges"].update(new)
         self.commit(updated)
+        for event in self.proposal_events(list(new.values()), "propose-" + uuid4().hex[:12]):
+            self.record(event)
         usage = {
             "embedder": getattr(self.embedder, "usage", {}),
             "judge": getattr(self.judge, "usage", {}),
@@ -220,7 +446,7 @@ class MemoryService:
             self.journal.audit(actor, "consolidate", self.settings.scope)
             return report
 
-    async def erase(self, episode_id, actor):
+    async def erase(self, episode_id, actor, correlation_id=None):
         async with self.lock:
             payload = self.journal.get(episode_id)
             if not payload:
@@ -230,7 +456,193 @@ class MemoryService:
             updated = copy.deepcopy(self.state)
             remove_episode(updated, episode_id)
             self.commit(updated)
-            self.journal.erase(episode_id, actor)
+            cleaned = ["live_journal", "active_graph"] + (
+                ["graphiti_projection"] if self.graphiti else []
+            )
+            # The event row is written in the same SQLite transaction that blanks the raw text.
+            self.journal.erase(
+                episode_id,
+                actor,
+                event=ev.build(
+                    "source.deleted",
+                    actor=principal(actor),
+                    subject={"kind": "source", "identifier": episode_id},
+                    previous_state="live",
+                    new_state="deleted",
+                    correlation_id=correlation_id or uuid4().hex,
+                    data={"derived_stores_cleaned": cleaned},
+                ),
+            )
+
+    def record_context(self, client_id, request, result, correlation_id=None):
+        """Event for a finished context assembly; called before the result is released."""
+        refs = [{"kind": "node", "id": item["id"]} for item in result["items"]]
+        self.record(
+            ev.build(
+                "context.assembled",
+                actor={"kind": "system", "identifier": client_id, "assurance": "bearer_token"},
+                subject={"kind": "memory_scope", "identifier": self.settings.scope},
+                provenance=refs,
+                correlation_id=correlation_id or uuid4().hex,
+                data={
+                    "requester": client_id,
+                    "items_returned": len(result["items"]),
+                    "max_chars_requested": request.max_chars,
+                    "chars_used": result["used_chars"],
+                    "truncated": result["truncated"],
+                    "include_candidates": request.include_candidates,
+                    "as_of": request.as_of.isoformat() if request.as_of else None,
+                    "target_assistant": None,
+                },
+            ),
+            applied=False,
+        )
+
+    # -- candidate queue (a read model over the projection and the event log) ------------
+    def candidate_view(self, kind, record):
+        subject = f"{kind}:{record['id']}"
+        history = self.journal.subject_events(subject)
+        contributions = [
+            {
+                "event_id": e["event_id"],
+                "sequence": e["sequence"],
+                "type": e["type"],
+                "recorded_at": e["recorded_at"],
+                "actor": e["actor"],
+                "origin": e["data"].get("origin"),
+                "basis": e["data"].get("basis"),
+                "sources": [r["id"] for r in e["provenance"]],
+            }
+            for e in history
+            if e["type"] in {"candidate.created", "candidate.evidence_added", "candidate.snapshot"}
+        ]
+        last_state = self.journal.last_state(subject)
+        nodes = self.state["nodes"]
+        view = {
+            "subject": {"kind": kind, "identifier": record["id"]},
+            "candidate_kind": record.get("kind") or record["relation"],
+            "status": record["status"],
+            "evidence": [
+                {
+                    k: e.get(k)
+                    for k in (
+                        "episode_id",
+                        "quote",
+                        "role",
+                        "occurred_at",
+                        "source_system",
+                        "conversation_id",
+                        "message_id",
+                        "url",
+                    )
+                }
+                for e in record["evidence"]
+            ],
+            "contributions": contributions,
+            "decision": next(
+                (
+                    {
+                        "event_id": e["event_id"],
+                        "type": e["type"],
+                        "recorded_at": e["recorded_at"],
+                        "actor": e["actor"],
+                        "previous_state": e["previous_state"],
+                    }
+                    for e in reversed(history)
+                    if e["type"] in {"candidate.confirmed", "candidate.rejected"}
+                ),
+                None,
+            ),
+            "audit": {
+                "events": len(history),
+                "first_sequence": history[0]["sequence"] if history else None,
+                "last_state_event_sequence": last_state[1] if last_state else None,
+                "last_recorded_state": last_state[0] if last_state else None,
+                "consistent": bool(last_state and last_state[0] == record["status"]),
+            },
+        }
+        if kind == "node":
+            view |= {
+                k: record.get(k)
+                for k in ("label", "summary", "confidence", "valid_from", "valid_to")
+            }
+        else:
+            ends = {}
+            for side in ("source", "target"):
+                node = nodes.get(record[side + "_id"])
+                ends[side] = (
+                    {k: node[k] for k in ("id", "kind", "label", "summary", "status")}
+                    if node
+                    else None
+                )
+            view |= ends | {
+                "relation": record["relation"],
+                "proposal": record.get("proposal"),
+                "origin": record.get("origin", "manual"),
+            }
+        return view
+
+    def candidates(self, kind="all", status="candidate", relation=None, cursor=None, limit=50):
+        """Stable keyset page: ordered by (first event sequence, id). Unaudited items sort last."""
+        rows = []
+        firsts = self.journal.first_sequences()
+        for item_kind, records in (("node", self.state["nodes"]), ("link", self.state["edges"])):
+            if kind not in ("all", item_kind):
+                continue
+            for record in records.values():
+                if status != "all" and record["status"] != status:
+                    continue
+                if relation and (record.get("relation") != relation):
+                    continue
+                if item_kind == "link" and not all(
+                    record[s + "_id"] in self.state["nodes"] for s in ("source", "target")
+                ):
+                    continue
+                key = (firsts.get(f"{item_kind}:{record['id']}", 10**15), item_kind, record["id"])
+                rows.append((key, item_kind, record))
+        rows.sort(key=lambda r: r[0])
+        total = len(rows)
+        if cursor:
+            after = parse_cursor(cursor)
+            rows = [r for r in rows if r[0] > after]
+        page = rows[:limit]
+        more = len(rows) > limit
+        items = [self.candidate_view(k, r) for _, k, r in page]
+        last = page[-1][0] if page else None
+        return {
+            "items": items,
+            "total": total,
+            "has_more": more,
+            "next_cursor": f"{last[0]}:{last[1]}:{last[2]}" if more and last else None,
+        }
+
+    def subject_view(self, subject):
+        """Read-time label of an event subject from the projection; never stored in events."""
+        records = {"node": self.state["nodes"], "link": self.state["edges"]}.get(subject["kind"])
+        record = (records or {}).get(subject["identifier"])
+        if not record:
+            return {"available": False}
+        if subject["kind"] == "node":
+            return {
+                "available": True,
+                "candidate_kind": record["kind"],
+                "label": record["label"],
+                "status": record["status"],
+            }
+        nodes = self.state["nodes"]
+        ends = [nodes.get(record[s + "_id"], {}).get("label") for s in ("source", "target")]
+        return {
+            "available": True,
+            "candidate_kind": record["relation"],
+            "status": record["status"],
+            "label": f"{ends[0]} → {ends[1]}",
+        }
+
+    def candidate(self, kind, record_id):
+        records = self.state["nodes"] if kind == "node" else self.state["edges"]
+        if record_id not in records:
+            raise KeyError(record_id)
+        return self.candidate_view(kind, records[record_id])
 
     async def close(self):
         self.graph.close()
