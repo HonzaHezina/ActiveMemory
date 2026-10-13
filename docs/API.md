@@ -6,6 +6,7 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 
 | Endpoint | Právo | Význam |
 |---|---|---|
+| GET `/ui` | žádné (statický shell bez dat) | prohlížeč mapy; token se zadává na stránce a drží jen v paměti záložky; přísné CSP |
 | GET `/healthz` | žádné | proces žije |
 | GET `/readyz` | žádné | journal a graph backend dostupné; neověřuje dostupnost modelu |
 | POST `/v1/episodes` | write | queued ingest, 202, episode_id + duplicate |

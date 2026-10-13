@@ -28,6 +28,8 @@ počítání četnosti napříč chaty, aktivita s časovým útlumem, ruční s
 vazby ABOUT/SUPPORTS/REFINES/CONTRADICTS/SUPERSEDES, vyhledávání a sestavení kontextu
 s citacemi a limitem znaků. Uchovává explicitní časovou platnost `[valid_from, valid_to)`.
 Obsahuje živé smazání zdroje, export, audit operací, Docker/Coolify konfigurace a CI.
+Návrhy vazeb mezi myšlenkami z různých chatů (vždy `candidate` se zdroji) a webový prohlížeč mapy na `/ui`
+(témata, zdroje s citací, schvalování) viz [STATUS](docs/STATUS.md) a [EVALUATION](docs/EVALUATION.md).
 
 **Je to funkční vývojový základ, ne hotový produkční produkt.** Stav a omezení jsou přesně
 v [docs/STATUS.md](docs/STATUS.md). Automatické sémantické slučování myšlenek,

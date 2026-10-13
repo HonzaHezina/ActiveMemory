@@ -1,6 +1,6 @@
 # Stav dodaného základu · 2026-10-13
 
-Poslední milníky: AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
+Poslední milníky: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
 
 ## Implementace
 
@@ -25,7 +25,7 @@ Poslední milníky: AM-001 stack test připraven (Neo4j lokálně ověřen, Dock
 | Full hybrid context assembly | Graphiti facts separátně v search; společný context v backlogu AM-011 |
 | Deterministická konsolidace counts/activity | implementováno |
 | Autonomní dreaming/semantic clustering | backlog AM-005; není hotové |
-| Webové UI pro myšlenkovou mapu | backlog AM-004; map API dnes vrací JSON |
+| Webové UI pro myšlenkovou mapu (`/ui`) | implementováno (AM-004): témata, vývoj ve zdrojích, původní zpráva se zvýrazněnou citací, schvalování uzlů/vazeb, fronta návrhů; ověřeno jednotkovými testy logiky, testy hlaviček/CSP a e2e v jsdom; **v reálném prohlížeči vizuálně neověřeno** |
 | JSONL import normalizovaných zpráv | implementováno |
 | Originální chatbot export connectors | backlog AM-010 |
 | Docker/Compose/Coolify/CI | Compose validace a image build prošly v CI; skutečný Coolify deploy zatím neproveden |
@@ -38,7 +38,7 @@ Cíl: aktivní myšlenková mapa, kde se stejná myšlenka z různých chatů sp
 - Offline (bez modelu) se spojí jen téměř shodná formulace; parafráze vyžadují embeddingy a judge, které jsou implementované, ale na českých datech neprošly měřením (chybí klíče). Práh 0.6 pro embeddingy není kalibrován.
 - Automatické typy SUPPORTS/REFINES/CONTRADICTS vznikají jen přes judge; SUPERSEDES i bez modelu z přesně navazujících intervalů.
 - Kontext je lexical + 1-hop; neobsahuje důvod výběru ani Graphiti fakta (AM-011). `as_of` filtruje jen platnost tvrzení, ne to, co už uživatel v dané době napsal (14 takových položek v baseline).
-- Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). UI mapy chybí (AM-004).
+- Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). UI nemá graf-vizualizaci (hrany/layout); zobrazuje témata a seznamy, ne plátno.
 - Graphiti 0.30.2 s reálným modelem nebyl dosud spuštěn.
 
 ## Praktické limity

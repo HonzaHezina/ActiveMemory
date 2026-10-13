@@ -21,6 +21,9 @@ active-memory-mcp = "active_memory.mcp_server:main"
 [tool.setuptools.packages.find]
 where = ["src"]
 
+[tool.setuptools.package-data]
+active_memory = ["ui/*.html", "ui/*.js", "ui/*.css"]
+
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]

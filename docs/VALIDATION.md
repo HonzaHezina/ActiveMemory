@@ -70,3 +70,16 @@ Zbývající krok: nastavit repo secrets `MEMORY_TEST_MODEL_KEY`, `MEMORY_TEST_E
 (volitelně vars `MEMORY_TEST_MODEL_URL`/`_NAME`, `MEMORY_TEST_EMBEDDING_URL`/`_MODEL`/`_DIM`) a spustit
 workflow ručně s `graphiti_live=true`. Graphiti-only aserce (Episodic UUID, scoped facts, cizí group_id
 přežije rebuild, žádný text smazaného zdroje v odvozeném grafu) nebyly dosud vykonány.
+
+### AM-003 / AM-004 (lokálně, tentýž běh)
+
+| Kontrola | Výsledek |
+|---|---|
+| pytest celé sady proti lokálnímu Neo4j (`MEMORY_TEST_NEO4J`, `MEMORY_TEST_STACK_URI`) | 50 passed, 2 skipped (Graphiti live) |
+| ruff lint + format | prošly |
+| Live Neo4j: uložení a načtení návrhových hran včetně `rejected` | prošlo (`test_native_neo4j_persists_proposals_and_tombstones`) |
+| UI e2e v jsdom proti reálnému API se seedem z eval datasetu: připojení, 19 témat, kandidát označen, detail, zdroj se zvýrazněnou citací, potvrzení uzlu, fronta návrhů (2), žádný script/img z dat, 0 JS chyb | prošlo (jednorázově, skript není v repu) |
+| Wheel obsahuje `ui/*` | ověřeno `uv build --wheel`; Docker image s UI neověřen (CI) |
+
+**Neověřeno:** vzhled a ovládání ve skutečném prohlížeči, embedding/judge kvalita na češtině,
+Compose a Graphiti stack testy, `docker build` s novým package-data.

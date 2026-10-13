@@ -2,10 +2,11 @@ import asyncio
 import hashlib
 import hmac
 from contextlib import asynccontextmanager, suppress
+from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi import Query as URLQuery
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, Response
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import ValidationError
 
@@ -70,6 +71,33 @@ def create_app(settings=None):
     async def value_handler(request, error):
         detail = "validation failed" if isinstance(error, ValidationError) else str(error)
         return JSONResponse(status_code=422, content={"detail": detail})
+
+    ui_dir = Path(__file__).parent / "ui"
+    ui_files = {
+        "": ("index.html", "text/html; charset=utf-8"),
+        "index.html": ("index.html", "text/html; charset=utf-8"),
+        "app.js": ("app.js", "text/javascript; charset=utf-8"),
+        "logic.js": ("logic.js", "text/javascript; charset=utf-8"),
+        "app.css": ("app.css", "text/css; charset=utf-8"),
+    }
+    ui_headers = {
+        # Static shell only: it holds no data and no secret. Data arrives via the authenticated API
+        # and is inserted as text. Nothing external may load; the page cannot be framed.
+        "Content-Security-Policy": "default-src 'none'; script-src 'self'; style-src 'self'; "
+        "connect-src 'self'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'",
+        "X-Content-Type-Options": "nosniff",
+        "Referrer-Policy": "no-referrer",
+        "Cache-Control": "no-store",
+    }
+
+    @app.get("/ui", include_in_schema=False)
+    @app.get("/ui/", include_in_schema=False)
+    @app.get("/ui/{name}", include_in_schema=False)
+    def ui(name: str = ""):
+        if name not in ui_files:
+            raise HTTPException(404, "not found")
+        filename, media = ui_files[name]
+        return Response((ui_dir / filename).read_bytes(), media_type=media, headers=ui_headers)
 
     @app.get("/healthz")
     def health():

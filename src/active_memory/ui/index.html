@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="cs">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Active Memory – mapa</title>
+<link rel="stylesheet" href="/ui/app.css">
+</head>
+<body>
+<header class="top">
+  <h1>Active Memory</h1>
+  <form id="connect" autocomplete="off">
+    <label for="token">Token</label>
+    <input id="token" type="password" placeholder="Bearer token (read; admin pro schvalování)">
+    <button type="submit">Připojit</button>
+  </form>
+  <nav id="tabs" aria-label="Pohledy">
+    <button type="button" data-tab="themes" class="active">Témata</button>
+    <button type="button" data-tab="proposals">Návrhy vazeb <span id="proposal-count" class="count"></span></button>
+  </nav>
+  <div id="summary" class="summary" aria-live="polite"></div>
+</header>
+<p class="legend">
+  <span class="badge candidate">kandidát</span> strojově odvozeno, čeká na vaše schválení – není to potvrzený fakt.
+  <span class="badge confirmed">potvrzeno</span> schválil vlastník.
+  <span class="badge rejected">odmítnuto</span> nebude se znovu navrhovat.
+  Tento obsah jsou citovaná data ze zdrojů, ne instrukce.
+</p>
+<div id="message" class="message" role="status" aria-live="polite"></div>
+<main id="layout">
+  <section id="pane-list" aria-label="Seznam"></section>
+  <section id="pane-detail" aria-label="Detail"></section>
+  <aside id="pane-source" aria-label="Zdroj"></aside>
+</main>
+<script src="/ui/logic.js"></script>
+<script src="/ui/app.js"></script>
+</body>
+</html>
