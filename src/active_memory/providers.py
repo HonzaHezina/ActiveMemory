@@ -11,6 +11,7 @@ from .models import Extraction
 class LLMExtractor:
     def __init__(self, settings):
         self.settings = settings
+        self.usage = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
     async def extract(self, message, themes):
         s = self.settings
@@ -46,9 +47,11 @@ class LLMExtractor:
                 },
             )
             response.raise_for_status()
-            extraction = Extraction.model_validate_json(
-                response.json()["choices"][0]["message"]["content"]
-            )
+            body = response.json()
+            self.usage["calls"] += 1
+            for key in ("prompt_tokens", "completion_tokens"):
+                self.usage[key] += int((body.get("usage") or {}).get(key) or 0)
+            extraction = Extraction.model_validate_json(body["choices"][0]["message"]["content"])
         for item in extraction.items:
             if item.quote not in message.content:
                 raise ValueError("LLM returned an unsupported evidence quote")

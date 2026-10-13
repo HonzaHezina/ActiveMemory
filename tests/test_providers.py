@@ -98,16 +98,21 @@ def test_llm_extraction_requires_supported_quotes(monkeypatch, quote, valid):
             return httpx.Response(
                 200,
                 request=httpx.Request("POST", url),
-                json={"choices": [{"message": {"content": json.dumps(result)}}]},
+                json={
+                    "choices": [{"message": {"content": json.dumps(result)}}],
+                    "usage": {"prompt_tokens": 11, "completion_tokens": 7},
+                },
             )
 
     monkeypatch.setattr(httpx, "AsyncClient", FakeClient)
     settings = Settings(
         _env_file=None, extraction_mode="llm", allow_model_calls=True, model_api_key="fake-key"
     )
-    coro = LLMExtractor(settings).extract(Message.model_validate(message()), [])
+    extractor = LLMExtractor(settings)
+    coro = extractor.extract(Message.model_validate(message()), [])
     if valid:
         assert asyncio.run(coro).items[0].quote == quote
+        assert extractor.usage == {"calls": 1, "prompt_tokens": 11, "completion_tokens": 7}
     else:
         with pytest.raises(ValueError, match="unsupported evidence quote"):
             asyncio.run(coro)
