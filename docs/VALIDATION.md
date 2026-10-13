@@ -51,3 +51,22 @@ uv run pytest -q tests/test_live_graph.py -k native
 Graphiti test navÃ­c potÅ™ebuje `MEMORY_TEST_GRAPHITI=true`, `MEMORY_TEST_MODEL_KEY`,
 `MEMORY_TEST_EMBEDDING_KEY` a pÅ™Ã­padnÄ› TEST_MODEL_URL/TEST_EMBEDDING_URL.
 Pracuje se samostatnÃ½m nÃ¡hodnÃ½m test scope. MÅ¯Å¾e vyvolat modelovÃ© nÃ¡klady, proto nebÄ›Å¾Ã­ implicitnÄ›.
+
+## Bìh 2026-10-13 (druhý, Windows pracovní stanice)
+
+Bez Dockeru a bez modelových klíèù. Neo4j 5.26.31 Community byl spuštìn lokálnì z oficiálního zipu (JDK 21).
+
+| Kontrola | Výsledek |
+|---|---|
+| uv sync --frozen, ruff, ruff format, pytest | prošly; 19 passed, 4 skipped (opt-in) |
+| Reálný `active-memory serve` + `init` + `scripts/demo.py` | prošlo: 3 epizody, 3 uzly, 2 vazby, kontext 3 položky |
+| `tests/test_live_graph.py -k native` proti lokálnímu Neo4j | 1 passed |
+| `tests/test_stack_integration.py` (bez modelu, API subprocess + Neo4j): ingest, hotové joby, zdrojové UUID v mapì, restart API, restart, smazání, purge z Neo4j | 1 passed |
+
+**Neovìøeno:** Docker Compose varianta stack testu (`MEMORY_TEST_DOCKER=true`, CI job `docker-stack`;
+override používá `!override`, tedy Compose >= 2.24) a Graphiti varianta
+(`MEMORY_TEST_DOCKER_GRAPHITI=true`, CI job `graphiti-live`) – chybí Docker daemon resp. modelové klíèe.
+Zbývající krok: nastavit repo secrets `MEMORY_TEST_MODEL_KEY`, `MEMORY_TEST_EMBEDDING_KEY`
+(volitelnì vars `MEMORY_TEST_MODEL_URL`/`_NAME`, `MEMORY_TEST_EMBEDDING_URL`/`_MODEL`/`_DIM`) a spustit
+workflow ruènì s `graphiti_live=true`. Graphiti-only aserce (Episodic UUID, scoped facts, cizí group_id
+pøežije rebuild, žádný text smazaného zdroje v odvozeném grafu) nebyly dosud vykonány.

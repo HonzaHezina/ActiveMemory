@@ -1,7 +1,18 @@
 name: CI
-on: [push, pull_request]
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      graphiti_live:
+        description: Run the paid Graphiti/model stack test (needs repository secrets)
+        type: boolean
+        default: false
+  schedule:
+    - cron: '17 4 * * 1'
 jobs:
   checks:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -21,6 +32,7 @@ jobs:
           MEMORY_NEO4J_PASSWORD: ci-only-not-a-real-secret
       - run: docker build -t active-memory:ci .
   native-graph:
+    if: github.event_name != 'schedule'
     runs-on: ubuntu-latest
     services:
       neo4j:
@@ -44,3 +56,55 @@ jobs:
         env:
           MEMORY_TEST_NEO4J: 'true'
           MEMORY_TEST_NEO4J_PASSWORD: ci-only-not-a-real-secret
+  docker-stack:
+    # Keyless: the real image + Neo4j through Compose, no model call, no cost.
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --extra dev
+      - run: uv run --no-sync pytest -q tests/test_stack_integration.py -k native_graph
+        env:
+          MEMORY_TEST_DOCKER: 'true'
+  graphiti-live:
+    # Paid provider: never on push/PR. Manual (workflow_dispatch with graphiti_live) or weekly.
+    if: >-
+      github.event_name == 'schedule' ||
+      (github.event_name == 'workflow_dispatch' && inputs.graphiti_live)
+    runs-on: ubuntu-latest
+    env:
+      MEMORY_TEST_MODEL_KEY: ${{ secrets.MEMORY_TEST_MODEL_KEY }}
+      MEMORY_TEST_EMBEDDING_KEY: ${{ secrets.MEMORY_TEST_EMBEDDING_KEY }}
+      MEMORY_TEST_MODEL_URL: ${{ vars.MEMORY_TEST_MODEL_URL }}
+      MEMORY_TEST_EMBEDDING_URL: ${{ vars.MEMORY_TEST_EMBEDDING_URL }}
+      MEMORY_TEST_MODEL_NAME: ${{ vars.MEMORY_TEST_MODEL_NAME }}
+      MEMORY_TEST_EMBEDDING_MODEL: ${{ vars.MEMORY_TEST_EMBEDDING_MODEL }}
+      MEMORY_TEST_EMBEDDING_DIM: ${{ vars.MEMORY_TEST_EMBEDDING_DIM }}
+    steps:
+      - name: Skip without provider secrets
+        id: gate
+        run: |
+          if [ -z "$MEMORY_TEST_MODEL_KEY" ] || [ -z "$MEMORY_TEST_EMBEDDING_KEY" ]; then
+            echo "run=false" >> "$GITHUB_OUTPUT"
+            echo "::notice::MEMORY_TEST_MODEL_KEY / MEMORY_TEST_EMBEDDING_KEY not configured; skipped"
+          else
+            echo "run=true" >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/checkout@v4
+      - if: steps.gate.outputs.run == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - if: steps.gate.outputs.run == 'true'
+        uses: astral-sh/setup-uv@v6
+      - if: steps.gate.outputs.run == 'true'
+        run: uv sync --frozen --extra dev
+      - if: steps.gate.outputs.run == 'true'
+        run: uv run --no-sync pytest -q tests/test_stack_integration.py -k graphiti
+        env:
+          MEMORY_TEST_DOCKER_GRAPHITI: 'true'
