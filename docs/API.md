@@ -127,3 +127,10 @@ Otevři `http://127.0.0.1:8080/ui`, vlož token (jednou; menu nahoře přepíná
 Potvrdit/Zamítnout jsou pak zablokována. Demo používá fiktivní konverzace a extrakce dodané skriptem
 (žádné volání modelu) a kandidáty nechá nerozhodnuté; opakované spuštění nic nepřidá.
 Pro read-only pohled: `uv run active-memory init --client reader --permissions read`.
+
+### Import vlastních konverzací
+
+`scripts/import_chats.py chats.json` nahraje konverzace z lokálního JSON souboru (formát je v záhlaví skriptu;
+soubor s osobními daty necommituj). Zprávy dostanou id podle pořadí a čas `start` + 1 minuta na zprávu; pokud neznáš
+původní časy, napiš to do `conversation_id`. Pole `items` jsou extrakce dodané autorem souboru (ne modelem) a zůstávají
+kandidáty; citace se před odesláním ověří jako přesný text zprávy. Opakované spuštění nic nezdvojí.

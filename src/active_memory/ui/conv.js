@@ -59,14 +59,25 @@
         item.subject.kind === "node" ? [" · ", el("button", { type: "button", class: "link", onclick: () => S.show("map", { tab: "themes", focusNode: item.subject.identifier }) }, "Na mapě témat")] : null));
   }
 
+  const LONG = 900; // characters; longer assistant answers start collapsed
+  const expanded = new Set();
+
   function bubble(message) {
     const quotes = message.derived.flatMap((d) => d.quotes);
+    const mine = message.role === "user";
+    const collapsible = !mine && message.content.length > LONG && !quotes.length;
+    const open = expanded.has(message.episode_id);
+    const text = el("div", { class: "bubble-text" + (collapsible && !open ? " collapsed" : "") },
+      R.markQuotes(message.content, quotes).map((s) => (s.mark ? el("mark", {}, s.text) : s.text)));
     return el("li", { class: "msg " + message.role + (message.episode_id === state.highlight ? " highlight" : ""), "data-episode": message.episode_id },
-      el("div", { class: "meta" }, (R.ROLE[message.role] || message.role) + " · " + R.when(message.occurred_at)),
-      el("p", { class: "source-text" }, R.markQuotes(message.content, quotes).map((s) => (s.mark ? el("mark", {}, s.text) : s.text))),
-      message.derived.length
-        ? el("div", { class: "derived" }, el("div", { class: "meta" }, "Z této zprávy vzniklo:"), el("ul", { class: "chips" }, message.derived.map(derivedChip)))
-        : el("div", { class: "meta" }, message.role === "user" ? "Z této zprávy nevzniklo nic." : "Odpověď asistenta se nezpracovává do paměti."));
+      el("div", { class: "avatar", "aria-hidden": "true" }, mine ? "Vy" : message.role === "assistant" ? "AI" : "·"),
+      el("div", { class: "msg-body" },
+        el("div", { class: "msg-head" }, el("strong", {}, R.ROLE[message.role] ? R.ROLE[message.role][0].toUpperCase() + R.ROLE[message.role].slice(1) : message.role), " · ", R.when(message.occurred_at)),
+        el("div", { class: "bubble" }, text,
+          collapsible ? el("button", { type: "button", class: "link more", onclick: () => { open ? expanded.delete(message.episode_id) : expanded.add(message.episode_id); render(); } }, open ? "Zobrazit méně" : "Zobrazit celou odpověď (" + message.content.length + " znaků)") : null),
+        message.derived.length
+          ? el("div", { class: "derived" }, el("div", { class: "meta" }, "Z této zprávy vzniklo:"), el("ul", { class: "chips" }, message.derived.map(derivedChip)))
+          : null));
   }
 
   function render() {
@@ -91,10 +102,10 @@
     const detail = $("conv-detail");
     if (!state.detail) { detail.replaceChildren(el("p", { class: "empty" }, "Vyberte konverzaci vlevo.")); return; }
     detail.replaceChildren(
-      el("h3", {}, "Konverzace „" + state.detail.conversation_id + "“"),
+      el("h3", { class: "chat-title" }, state.detail.conversation_id),
       el("div", { class: "meta" }, state.detail.source_system + " · zpráv: " + state.detail.messages.length + " · ",
         el("button", { type: "button", class: "link", onclick: () => S.show("graph", { scope: { kind: "conversation", source_system: state.detail.source_system, conversation_id: state.detail.conversation_id } }) }, "zobrazit jako graf")),
-      el("ol", { class: "messages" }, state.detail.messages.map(bubble)));
+      el("ol", { class: "messages chat" }, state.detail.messages.map(bubble)));
   }
 
   S.register("conversations", {
