@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "active-memory": {
+      "command": "/ABSOLUTE/PATH/active-memory/.venv/bin/active-memory-mcp",
+      "env": {
+        "MEMORY_API_URL": "http://127.0.0.1:8080",
+        "MEMORY_CLIENT_API_KEY": "SET_USING_YOUR_CLIENT_SECRET_STORE",
+        "MEMORY_MCP_ALLOW_WRITE": "false"
+      }
+    }
+  }
+}

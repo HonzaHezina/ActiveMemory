@@ -1,0 +1,30 @@
+# Overlay: docker compose -f compose.yaml -f compose.graph.yaml up -d --build
+# Add MEMORY_NEO4J_PASSWORD in .env. Neo4j ports remain internal.
+services:
+  memory:
+    environment:
+      MEMORY_BACKEND: neo4j
+      MEMORY_NEO4J_URI: bolt://neo4j:7687
+    depends_on:
+      neo4j:
+        condition: service_healthy
+  neo4j:
+    image: neo4j:5.26.31-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: "neo4j/${MEMORY_NEO4J_PASSWORD:?set MEMORY_NEO4J_PASSWORD}"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 1g
+    volumes:
+      - neo4j_data:/data
+      - neo4j_logs:/logs
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO- http://localhost:7474/ >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+volumes:
+  neo4j_data:
+  neo4j_logs:

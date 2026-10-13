@@ -1,0 +1,8 @@
+include README.md START_HERE.md AGENTS.md CLAUDE.md
+include uv.lock requirements.lock .env.example
+include Dockerfile compose*.yaml
+recursive-include docs *.md *.json
+recursive-include tests *.py
+recursive-include examples *.json *.jsonl
+recursive-include config *.example.json
+recursive-include scripts *.py

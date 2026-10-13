@@ -1,0 +1,24 @@
+services:
+  memory:
+    build: .
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      MEMORY_HOST: 0.0.0.0
+      MEMORY_DATA_DIR: /app/data
+      MEMORY_CLIENTS_FILE: /app/config/clients.json
+    ports:
+      - "127.0.0.1:8080:8080"
+    volumes:
+      - memory_data:/app/data
+      - ./config/clients.json:/app/config/clients.json:ro
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 5
+      start_period: 30s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+volumes:
+  memory_data:

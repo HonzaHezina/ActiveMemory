@@ -1,0 +1,44 @@
+name: CI
+on: [push, pull_request]
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --extra dev --extra graphiti
+      - run: uv run --no-sync ruff check .
+      - run: uv run --no-sync ruff format --check .
+      - run: uv run --no-sync pytest -q
+      - run: docker compose --env-file .env.example config --quiet
+      - run: docker compose --env-file .env.example -f compose.yaml -f compose.graph.yaml config --quiet
+        env:
+          MEMORY_NEO4J_PASSWORD: ci-only-not-a-real-secret
+      - run: docker build -t active-memory:ci .
+  native-graph:
+    runs-on: ubuntu-latest
+    services:
+      neo4j:
+        image: neo4j:5.26.31-community
+        env:
+          NEO4J_AUTH: neo4j/ci-only-not-a-real-secret
+        ports:
+          - 7474:7474
+          - 7687:7687
+        options: >-
+          --health-cmd "wget -qO- http://localhost:7474/"
+          --health-interval 10s --health-timeout 5s --health-retries 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - uses: astral-sh/setup-uv@v6
+      - run: uv sync --frozen --extra dev
+      - run: uv run --no-sync pytest -q tests/test_live_graph.py -k native
+        env:
+          MEMORY_TEST_NEO4J: 'true'
+          MEMORY_TEST_NEO4J_PASSWORD: ci-only-not-a-real-secret

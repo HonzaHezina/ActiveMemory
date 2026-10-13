@@ -1,0 +1,60 @@
+# Standalone Coolify resource. Route HTTPS only to memory:8080.
+# Set MEMORY_API_KEY (>=24 random chars), MEMORY_NEO4J_PASSWORD and model settings in Coolify.
+services:
+  memory:
+    build: .
+    restart: unless-stopped
+    expose: ["8080"]
+    environment:
+      MEMORY_HOST: 0.0.0.0
+      MEMORY_SCOPE: ${MEMORY_SCOPE:-personal:owner}
+      MEMORY_API_KEY: ${MEMORY_API_KEY:?set MEMORY_API_KEY}
+      MEMORY_CLIENTS_FILE: /app/config/clients.json
+      MEMORY_DATA_DIR: /app/data
+      MEMORY_BACKEND: neo4j
+      MEMORY_NEO4J_URI: bolt://neo4j:7687
+      MEMORY_NEO4J_PASSWORD: ${MEMORY_NEO4J_PASSWORD:?set MEMORY_NEO4J_PASSWORD}
+      MEMORY_EXTRACTION_MODE: ${MEMORY_EXTRACTION_MODE:-provided}
+      MEMORY_GRAPHITI_ENABLED: ${MEMORY_GRAPHITI_ENABLED:-false}
+      MEMORY_ALLOW_MODEL_CALLS: ${MEMORY_ALLOW_MODEL_CALLS:-false}
+      MEMORY_MODEL_BASE_URL: ${MEMORY_MODEL_BASE_URL:-https://api.openai.com/v1}
+      MEMORY_MODEL_API_KEY: ${MEMORY_MODEL_API_KEY:-}
+      MEMORY_MODEL_NAME: ${MEMORY_MODEL_NAME:-gpt-4.1-mini}
+      MEMORY_EMBEDDING_BASE_URL: ${MEMORY_EMBEDDING_BASE_URL:-https://api.openai.com/v1}
+      MEMORY_EMBEDDING_API_KEY: ${MEMORY_EMBEDDING_API_KEY:-}
+      MEMORY_EMBEDDING_MODEL: ${MEMORY_EMBEDDING_MODEL:-text-embedding-3-small}
+      MEMORY_EMBEDDING_DIM: ${MEMORY_EMBEDDING_DIM:-1536}
+      GRAPHITI_TELEMETRY_ENABLED: "false"
+      SEMAPHORE_LIMIT: "3"
+    volumes:
+      - memory_data:/app/data
+    depends_on:
+      neo4j:
+        condition: service_healthy
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://localhost:8080/readyz', timeout=3)"]
+      interval: 20s
+      timeout: 5s
+      retries: 10
+      start_period: 60s
+    security_opt: ["no-new-privileges:true"]
+    cap_drop: [ALL]
+  neo4j:
+    image: neo4j:5.26.31-community
+    restart: unless-stopped
+    environment:
+      NEO4J_AUTH: "neo4j/${MEMORY_NEO4J_PASSWORD:?set MEMORY_NEO4J_PASSWORD}"
+      NEO4J_server_memory_heap_initial__size: 512m
+      NEO4J_server_memory_heap_max__size: 1g
+      NEO4J_server_memory_pagecache_size: 1g
+    volumes: ["neo4j_data:/data", "neo4j_logs:/logs"]
+    healthcheck:
+      test: [CMD-SHELL, "wget -qO- http://localhost:7474/ >/dev/null 2>&1"]
+      interval: 20s
+      timeout: 5s
+      retries: 15
+      start_period: 60s
+volumes:
+  memory_data:
+  neo4j_data:
+  neo4j_logs:

@@ -1,0 +1,13 @@
+.git
+.venv
+.env
+.env.*
+config/clients.json
+data
+backups
+__pycache__
+.pytest_cache
+.ruff_cache
+*.egg-info
+*.zip
+*.bundle

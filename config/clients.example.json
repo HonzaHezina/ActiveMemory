@@ -1,0 +1,7 @@
+[
+  {
+    "id": "agent-reader",
+    "key_sha256": "REPLACE_WITH_SHA256_OF_GENERATED_KEY",
+    "permissions": ["read"]
+  }
+]
