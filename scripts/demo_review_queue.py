@@ -1,6 +1,6 @@
 """Seed a running reference instance with synthetic candidates left for human review.
 
-Only fictional conversations. Extractions are *supplied by this script* (the API's `provided`
+Only fictional conversations (all text, including assistant replies, is invented for the demo). Extractions are *supplied by this script* (the API's `provided`
 mode); no language model is called and nothing here pretends otherwise. Candidates stay
 `candidate`; decide them on http://127.0.0.1:8080/ui/review. Safe to run repeatedly: identical
 messages are recognised as duplicates and add no candidates or events.
@@ -160,6 +160,179 @@ MESSAGES = [
 ]
 
 
+# Follow-up turns that turn the single-message demo threads into small conversations. All text is
+# invented for the demo, including the assistant replies, which are kept as sources only. New
+# message ids are added so the original messages (and decisions made on them) stay untouched.
+def turn(chat, mid, role, content, at, *items):
+    return message(chat, mid, content, list(items) or None, at=at, role=role)
+
+
+MESSAGES += [
+    turn(
+        "architektura",
+        "9",
+        "assistant",
+        "Dává to smysl. Můžeme rozlišit tři úrovně: kroky bez zásahu, kroky, které systém jen navrhne, "
+        "a kroky, které vždy schvaluje člověk. Která úroveň ti u výsledků zní nejpřirozeněji?",
+        "2026-10-01T10:01:00Z",
+    ),
+    turn(
+        "architektura",
+        "10",
+        "user",
+        "Nejvíc mi záleží na tom, aby se nikdy nic nesmazalo bez mého souhlasu.",
+        "2026-10-01T10:03:00Z",
+        item(
+            "Thought",
+            "Nic se nemaže bez souhlasu",
+            "Mazání vždy až po souhlasu člověka.",
+            "nikdy nic nesmazalo bez mého souhlasu",
+            ["Lidská kontrola"],
+        ),
+    ),
+    turn(
+        "architektura",
+        "11",
+        "assistant",
+        "Rozumím. U mazání tedy navrhuji dvoukrokový postup: systém označí, co by smazal, a smazání "
+        "proběhne až po tvém potvrzení. Historie změn přitom zůstane zachovaná.",
+        "2026-10-01T10:04:00Z",
+    ),
+    turn(
+        "architektura",
+        "12",
+        "user",
+        "A chci vidět, odkud se každá informace vzala.",
+        "2026-10-01T10:06:00Z",
+        item(
+            "Goal",
+            "Vidět původ každé informace",
+            "U každého záznamu chci znát zdroj.",
+            "vidět, odkud se každá informace vzala",
+            ["Původ informací"],
+        ),
+    ),
+    turn(
+        "architektura",
+        "13",
+        "assistant",
+        "Každý záznam proto ponese odkaz na zdrojovou zprávu a přesnou citaci. Kde zdroj chybí, "
+        "uvidíš „původ neznámý“, ne odhad.",
+        "2026-10-01T10:07:00Z",
+    ),
+    turn(
+        "provoz-studia",
+        "14",
+        "assistant",
+        "Jaké zálohy máš na mysli: záznamy rezervací, nebo i fotky a materiály z natáčení?",
+        "2026-10-02T09:01:00Z",
+    ),
+    turn(
+        "provoz-studia",
+        "15",
+        "user",
+        "Hlavně rezervace a faktury, fotky jsou na jiném disku.",
+        "2026-10-02T09:03:00Z",
+        item(
+            "Fact",
+            "Zálohovat rezervace a faktury",
+            "Důležité jsou rezervace a faktury; fotky jsou jinde.",
+            "Hlavně rezervace a faktury",
+            ["Provoz studia"],
+        ),
+    ),
+    turn(
+        "provoz-studia",
+        "16",
+        "assistant",
+        "Rezervace a faktury tedy zálohuj denně do dvou míst. Fotky na druhém disku můžeme zatím "
+        "vynechat a vrátit se k nim později.",
+        "2026-10-02T09:04:00Z",
+    ),
+    turn(
+        "planovani",
+        "17",
+        "user",
+        "Redis nechci, chci něco, co přežije restart bez ztráty dat.",
+        "2026-10-03T18:12:00Z",
+        item(
+            "Thought",
+            "Paměť musí přežít restart",
+            "Úložiště nesmí při restartu ztrácet data.",
+            "něco, co přežije restart bez ztráty dat",
+            ["Volba databáze"],
+        ),
+    ),
+    turn(
+        "planovani",
+        "18",
+        "assistant",
+        "Dobrá poznámka. Redis lze nastavit i trvale, ale pro dlouhodobou paměť s vazbami je "
+        "vhodnější databáze s trvalostí od začátku, například Neo4j nebo PostgreSQL.",
+        "2026-10-03T18:13:00Z",
+    ),
+    turn("planovani", "19", "user", "Dobře, tak to zvážím večer.", "2026-10-03T18:15:00Z"),
+    turn(
+        "rozhodnuti-db",
+        "20",
+        "assistant",
+        "PostgreSQL je rozumná volba pro začátek. Zapíšu, že rozhodnutí platí zatím a že se k němu "
+        "máš vrátit.",
+        "2026-06-01T14:01:00Z",
+    ),
+    turn(
+        "rozhodnuti-db",
+        "21",
+        "assistant",
+        "Rozumím, přechod na Neo4j. Dřívější rozhodnutí o PostgreSQL zůstane v historii s koncem "
+        "platnosti k 1. říjnu.",
+        "2026-10-01T09:01:00Z",
+    ),
+    turn(
+        "rozhodnuti-db",
+        "22",
+        "user",
+        "Data z PostgreSQL převedu až po záloze.",
+        "2026-10-01T09:05:00Z",
+        item(
+            "Decision",
+            "Převod dat až po záloze",
+            "Data se převedou z PostgreSQL až po záloze.",
+            "převedu až po záloze",
+            ["Volba databáze"],
+        ),
+    ),
+    turn(
+        "rodina",
+        "23",
+        "assistant",
+        "Skvělý nápad. Chceš připravit seznam věcí, které vzít s sebou?",
+        "2026-10-04T17:01:00Z",
+    ),
+    turn(
+        "rodina",
+        "24",
+        "user",
+        "Ano, hlavně něco na jídlo pro děti.",
+        "2026-10-04T17:03:00Z",
+        item(
+            "Goal",
+            "Vzít jídlo pro děti",
+            "Na výlet připravit jídlo pro děti.",
+            "něco na jídlo pro děti",
+            ["Rodinný výlet"],
+        ),
+    ),
+    turn(
+        "rodina",
+        "25",
+        "assistant",
+        "Navrhuji svačiny, ovoce a dostatek pití. Přidej i náhradní oblečení pro případ deště.",
+        "2026-10-04T17:04:00Z",
+    ),
+]
+
+
 def main():
     key = os.environ.get("MEMORY_CLIENT_API_KEY")
     if not key:
@@ -198,9 +371,13 @@ def main():
             },
         )
         queue = call("GET", "/v1/candidates?status=candidate&kind=all&limit=1")
+        confirmed = call("GET", "/v1/candidates?status=confirmed&kind=all&limit=1")["total"]
         events = call("GET", "/v1/events?limit=1&order=desc")
     print(f"Nové zprávy: {sum(not r['duplicate'] for r in results)} z {len(results)}")
-    print(f"Kandidátů čeká na rozhodnutí: {queue['total']} (žádný není potvrzený)")
+    print(
+        f"Kandidátů čeká na rozhodnutí: {queue['total']} (potvrzeno dosud: {confirmed}; "
+        "nic se nepotvrzuje samo)"
+    )
     print(
         f"Poslední sekvence událostí: {events['events'][0]['sequence'] if events['events'] else None}"
     )
