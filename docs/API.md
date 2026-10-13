@@ -6,7 +6,7 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 
 | Endpoint | Právo | Význam |
 |---|---|---|
-| GET `/ui` (též `/ui/review`) | žádné (statický shell bez dat) | jedna stránka s menu: Ke schválení, Konverzace, Témata, Návrhy vazeb, Časová osa; token se zadává jednou a drží jen v paměti záložky (přepínání pohledů ho neztratí, obnovení stránky ano); přísné CSP |
+| GET `/ui` (též `/ui/review`) | žádné (statický shell bez dat) | jedna stránka s menu: Konverzace (výchozí), Ke schválení, Graf, Témata, Návrhy vazeb, Časová osa; token se zadává jednou a drží jen v paměti záložky (přepínání pohledů ho neztratí, obnovení stránky ano); přísné CSP |
 | GET `/v1/conversations` | read | živé konverzace (nejnovější první), kurzor, počty návrhů podle stavu |
 | GET `/v1/conversations/{source_system}/{conversation_id}` | read | zprávy jedné konverzace a co z každé vzniklo (`derived`: návrh, stav, citace); smazaný zdroj zmizí |
 | GET `/healthz` | žádné | proces žije |

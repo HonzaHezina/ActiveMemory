@@ -112,3 +112,14 @@ mark { background: #ffe58a; color: #000; padding: 0 2px; border-radius: 3px; }
 .timeline li.t-created, .timeline li.t-snapshot, .timeline li.t-evidence_added { border-left-color: var(--cand); }
 .timeline li.t-unknown { border-left-style: dashed; }
 .timeline .when { color: var(--muted); font-size: .85rem; }
+
+.graph-split { grid-template-columns: minmax(0, 3fr) minmax(260px, 1fr); }
+#graph-canvas { height: 620px; background: var(--card); border: 1px solid var(--line); border-radius: 10px; }
+@media (max-width: 960px) { .graph-split { grid-template-columns: 1fr; } #graph-canvas { height: 420px; } }
+#graph-detail { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 12px 16px; }
+ul.plain { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
+.legend-line { margin: 8px 0; }
+.__________cytoscape_container { position: relative; }
+select, input { max-width: 100%; }
+.filters label { max-width: 100%; flex-wrap: wrap; }
+.split > *, #layout > * { min-width: 0; }

@@ -5,6 +5,9 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Active Memory</title>
 <link rel="stylesheet" href="/ui/app.css">
+<!-- Cytoscape injects an inline <style> unless an element with this id exists; our CSP forbids inline
+     styles, and its one rule (.__________cytoscape_container) lives in app.css. -->
+<meta id="__________cytoscape_stylesheet" name="cytoscape-style" content="provided by app.css">
 </head>
 <body>
 <header class="top">
@@ -20,15 +23,29 @@
   </div>
 </header>
 <nav id="nav" aria-label="Hlavní menu">
-  <button type="button" data-view="review">Ke schválení <span id="review-count" class="count"></span></button>
   <button type="button" data-view="conversations">Konverzace</button>
+  <button type="button" data-view="review">Ke schválení <span id="review-count" class="count"></span></button>
+  <button type="button" data-view="graph">Graf</button>
   <button type="button" data-view="map" data-tab="themes">Témata</button>
   <button type="button" data-view="map" data-tab="proposals">Návrhy vazeb <span id="proposal-count" class="count"></span></button>
   <button type="button" data-view="timeline">Časová osa</button>
 </nav>
 <div id="message" class="message" role="status" aria-live="polite"></div>
 <main>
-  <section data-view="review" aria-labelledby="review-h">
+  <section data-view="conversations" aria-labelledby="conv-h">
+    <h2 id="conv-h">Konverzace</h2>
+    <p class="lead">Zprávy tak, jak byly dodány. Pod každou zprávou vidíte, co z ní vzniklo, a odtud se dostanete k návrhu nebo na mapu témat.</p>
+    <div class="split conv-split">
+      <div>
+        <p id="conv-info" class="meta"></p>
+        <ul id="conv-list" class="cards"></ul>
+        <button type="button" id="conv-more" hidden>Načíst další</button>
+      </div>
+      <article id="conv-detail" aria-live="polite"></article>
+    </div>
+  </section>
+
+  <section data-view="review" aria-labelledby="review-h" hidden>
     <h2 id="review-h">Ke schválení</h2>
     <p class="lead"><strong>Stroj navrhuje, rozhoduje člověk.</strong> Níže jsou návrhy opřené o citace z vašich konverzací.
       Zatím to nejsou potvrzené fakty. Rozhodovat smí jen token s oprávněním admin; to ale samo nedokazuje, že rozhodl konkrétní člověk.</p>
@@ -48,17 +65,17 @@
     </div>
   </section>
 
-  <section data-view="conversations" aria-labelledby="conv-h" hidden>
-    <h2 id="conv-h">Konverzace</h2>
-    <p class="lead">Zprávy tak, jak byly dodány. Pod každou zprávou vidíte, co z ní vzniklo, a odtud se dostanete k návrhu nebo na mapu témat.</p>
-    <div class="split conv-split">
-      <div>
-        <p id="conv-info" class="meta"></p>
-        <ul id="conv-list" class="cards"></ul>
-        <button type="button" id="conv-more" hidden>Načíst další</button>
-      </div>
-      <article id="conv-detail" aria-live="polite"></article>
+  <section data-view="graph" aria-labelledby="graph-h" hidden>
+    <h2 id="graph-h">Graf</h2>
+    <p class="lead">Obrázek jedné konverzace nebo jednoho tématu: co z ní vzniklo a jak to spolu souvisí. Čárkovaně je to, co čeká na schválení; plně to, co je potvrzeno.</p>
+    <div class="filters"><label>Zobrazit <select id="graph-scope"></select></label></div>
+    <p id="graph-info" class="meta"></p>
+    <div class="split graph-split">
+      <div id="graph-canvas" role="img" aria-label="Graf souvislostí; textový přehled je pod ním"></div>
+      <aside id="graph-detail" aria-live="polite"></aside>
     </div>
+    <p class="legend-line meta">Tvary: šestiúhelník = téma, kosočtverec = cíl, elipsa = myšlenka, obdélník = rozhodnutí, sud = konverzace. Tečkovaná čára = „vzniklo z konverzace“.</p>
+    <details class="tech" open><summary>Textový přehled</summary><ul id="graph-overview" class="plain"></ul></details>
   </section>
 
   <section data-view="map" aria-labelledby="map-h" hidden>
@@ -82,11 +99,14 @@
   </section>
 </main>
 <script src="/ui/shell.js"></script>
+<script src="/ui/cytoscape.min.js"></script>
 <script src="/ui/logic.js"></script>
 <script src="/ui/review_logic.js"></script>
+<script src="/ui/graph_logic.js"></script>
 <script src="/ui/app.js"></script>
 <script src="/ui/review.js"></script>
 <script src="/ui/conv.js"></script>
 <script src="/ui/timeline.js"></script>
+<script src="/ui/graph.js"></script>
 </body>
 </html>

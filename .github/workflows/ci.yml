@@ -35,7 +35,7 @@ jobs:
         run: >-
           docker run --rm --entrypoint python active-memory:ci -c
           "import active_memory,pathlib;u=pathlib.Path(active_memory.__file__).parent/'ui';
-          missing=[n for n in ('index.html','app.js','logic.js','app.css','shell.js','review.js','review_logic.js','conv.js','timeline.js') if not (u/n).is_file()];
+          missing=[n for n in ('index.html','app.js','logic.js','app.css','shell.js','review.js','review_logic.js','conv.js','timeline.js','graph.js','graph_logic.js','cytoscape.min.js') if not (u/n).is_file()];
           assert not missing, missing"
   native-graph:
     if: github.event_name != 'schedule'

@@ -18,7 +18,7 @@
       else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
       else if (value !== null && value !== undefined && value !== false) node.setAttribute(key, value);
     }
-    for (const child of children.flat()) {
+    for (const child of children.flat(Infinity)) {
       if (child === null || child === undefined || child === false) continue;
       node.append(child.nodeType ? child : document.createTextNode(String(child)));
     }
@@ -88,7 +88,8 @@
       el("button", { type: "button", class: "ok", disabled: !decision.allowed || busy, onclick: () => decide(item, "confirmed") }, busy ? "Probíhá…" : "Potvrdit"),
       el("button", { type: "button", class: "no", disabled: !decision.allowed || busy, onclick: () => decide(item, "rejected") }, busy ? "Probíhá…" : "Zamítnout"));
     const inMap = item.subject.kind === "node"
-      ? el("button", { type: "button", class: "link", onclick: () => S.show("map", { tab: "themes", focusNode: item.subject.identifier }) }, "Ukázat na mapě témat")
+      ? [el("button", { type: "button", class: "link", onclick: () => S.show("map", { tab: "themes", focusNode: item.subject.identifier }) }, "Ukázat na mapě témat"),
+          item.evidence[0] ? [" · ", el("button", { type: "button", class: "link", onclick: () => S.show("graph", { scope: { kind: "conversation", source_system: item.evidence[0].source_system, conversation_id: item.evidence[0].conversation_id } }) }, "Graf konverzace")] : null]
       : null;
     return el("li", { class: "card item " + item.status + (busy ? " busy" : ""), "data-id": id },
       el("div", { class: "kindline" }, R.KIND[item.candidate_kind] || item.candidate_kind, " ", badge(item.status)),

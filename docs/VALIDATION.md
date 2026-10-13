@@ -96,6 +96,8 @@ Compose a Graphiti stack testy, `docker build` s novým package-data.
 | e2e v jsdom proti reálnému serveru (jednorázově, skript není v repu): read-only token (tlačítka zablokovaná s vysvětlením), admin načte frontu, detail zdroje se zvýrazněnou citací, potvrzení i zamítnutí s ověřením v auditu, tlačítka zablokovaná během požadavku a dvojklik pošle jediný požadavek, konflikt z jiného klienta → obnova a srozumitelná zpráva, odpojení smaže data, špatný token → 401 zpráva, žádný script/img z dat, 0 JS chyb | prošlo |
 | Wheel nainstalovaný do čistého venv (`python -I`), server z něj obsluhuje `/ui`, `/ui/review*` | prošlo |
 
-**Neověřeno:** skutečný prohlížeč (vzhled, přístupnost čtečkou, klávesnice); Docker image obsahuje UI
+| Skutečný Chrome (headless, puppeteer-core, jednorázově, skript není v repu) proti reálnému serveru: připojení, přepínání všech pohledů, konverzace → graf, klik na uzel v canvasu, graf tématu, žádné `[object …]` v textu, mobilní šířka 390 px bez vodorovného posunu, odpojení, **konzole bez chyb a varování (CSP)** | prošlo; našel dvě chyby, které jsme v jsdom neviděli (inline `<style>` knihovny vs. CSP, zřetězení vnořených polí), obě opravené |
+
+**Neověřeno:** vzhled posouzený člověkem, přístupnost čtečkou obrazovky a klávesnicí, Firefox/Safari; Docker image obsahuje UI
 soubory (nový CI krok `Installed image serves its UI files` zatím neběžel, Docker tu není);
 Compose a Graphiti stack testy; chování událostí s Graphiti rebuildem při mazání.

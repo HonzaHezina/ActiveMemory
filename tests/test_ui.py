@@ -25,6 +25,9 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/shell.js", "javascript"),
             ("/ui/conv.js", "javascript"),
             ("/ui/timeline.js", "javascript"),
+            ("/ui/graph.js", "javascript"),
+            ("/ui/graph_logic.js", "javascript"),
+            ("/ui/cytoscape.min.js", "javascript"),
         ):
             response = anonymous.get(path)
             assert response.status_code == 200 and kind in response.headers["content-type"]
@@ -51,7 +54,12 @@ def test_ui_has_no_inline_scripts_external_resources_or_html_injection_sinks():
         html = (UI / page).read_text(encoding="utf-8")
         assert not re.search(r"<script(?![^>]*[ ]src=)", html) and "onclick=" not in html
         assert not re.search(r"(?:src|href)=[\"']https?:", html)
-    code = "".join(p.read_text(encoding="utf-8") for p in sorted(UI.glob("*.js")))
+    # Our own code only; the vendored MIT library (cytoscape.min.js) is pinned and licensed.
+    code = "".join(
+        p.read_text(encoding="utf-8")
+        for p in sorted(UI.glob("*.js"))
+        if p.name != "cytoscape.min.js"
+    )
     for sink in (
         "innerHTML",
         "outerHTML",
@@ -105,10 +113,19 @@ def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_i
 def test_all_views_share_one_page_so_the_token_survives_navigation():
     html = (UI / "index.html").read_text(encoding="utf-8")
     assert "<form" in html and html.count("<form") == 1  # one connect form for every view
-    for view in ("review", "conversations", "map", "timeline"):
+    for view in ("review", "conversations", "graph", "map", "timeline"):
         assert f'data-view="{view}"' in html
     # Views never navigate away: no links between pages, so nothing forces a reconnect.
     assert "<a " not in html
-    for name in ("app.js", "review.js", "conv.js", "timeline.js"):
+    for name in ("app.js", "review.js", "conv.js", "timeline.js", "graph.js"):
         code = (UI / name).read_text(encoding="utf-8")
         assert "fetch(" not in code and 'getElementById("token")' not in code, name
+
+
+def test_vendored_graph_library_is_pinned_licensed_and_not_loaded_from_a_cdn():
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    assert 'src="/ui/cytoscape.min.js"' in html and "cdn" not in html
+    assert "MIT" in (UI / "cytoscape.LICENSE").read_text(encoding="utf-8")
+    library = (UI / "cytoscape.min.js").read_text(encoding="utf-8")
+    assert "Cytoscape Consortium" in library and "eval(" not in library
+    assert "new Function" not in library  # works under script-src 'self' without unsafe-eval

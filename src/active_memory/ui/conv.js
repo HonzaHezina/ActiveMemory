@@ -14,7 +14,7 @@
       else if (key.startsWith("on")) node.addEventListener(key.slice(2), value);
       else if (value !== null && value !== undefined && value !== false) node.setAttribute(key, value);
     }
-    for (const child of children.flat()) {
+    for (const child of children.flat(Infinity)) {
       if (child === null || child === undefined || child === false) continue;
       node.append(child.nodeType ? child : document.createTextNode(String(child)));
     }
@@ -92,7 +92,8 @@
     if (!state.detail) { detail.replaceChildren(el("p", { class: "empty" }, "Vyberte konverzaci vlevo.")); return; }
     detail.replaceChildren(
       el("h3", {}, "Konverzace „" + state.detail.conversation_id + "“"),
-      el("div", { class: "meta" }, state.detail.source_system + " · zpráv: " + state.detail.messages.length),
+      el("div", { class: "meta" }, state.detail.source_system + " · zpráv: " + state.detail.messages.length + " · ",
+        el("button", { type: "button", class: "link", onclick: () => S.show("graph", { scope: { kind: "conversation", source_system: state.detail.source_system, conversation_id: state.detail.conversation_id } }) }, "zobrazit jako graf")),
       el("ol", { class: "messages" }, state.detail.messages.map(bubble)));
   }
 

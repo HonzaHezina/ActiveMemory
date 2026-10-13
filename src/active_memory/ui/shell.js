@@ -5,7 +5,7 @@
   "use strict";
   const $ = (id) => document.getElementById(id);
   const views = {};
-  const session = { token: null, canDecide: false, clientId: null, active: "review", tab: null };
+  const session = { token: null, canDecide: false, clientId: null, active: "conversations", tab: null };
 
   class ApiError extends Error {
     constructor(status, message) { super(message); this.status = status; }
@@ -109,5 +109,5 @@
     get canDecide() { return session.canDecide; },
     get connected() { return !!session.token; },
   };
-  document.addEventListener("DOMContentLoaded", () => show("review"));
+  document.addEventListener("DOMContentLoaded", () => show("conversations"));
 })();

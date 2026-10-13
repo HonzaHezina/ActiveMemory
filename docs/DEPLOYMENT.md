@@ -58,3 +58,9 @@ Base images mají konkrétní tagy, nikoli digest lock. Před provozním nasazen
 security updates, kompatibilitu a případně pin digest v daném registru.
 Nespouštěj více API/worker procesů nad stejnou memory. Snapshot backend by přepisoval změny.
 Neškáluj horizontálně před AM-006.
+
+## Třetí strany v UI
+
+`src/active_memory/ui/cytoscape.min.js` je přibalený Cytoscape.js 3.30.2 (licence MIT, text v `cytoscape.LICENSE`).
+Nenačítá se z CDN (CSP povoluje jen `'self'`). Aktualizace: stáhnout konkrétní verzi z npm balíčku `cytoscape`,
+nahradit soubor i licenci a spustit `pytest` a Node testy.

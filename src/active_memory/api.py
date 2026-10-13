@@ -100,6 +100,10 @@ def create_app(settings=None):
         "conv.js": ("conv.js", "text/javascript; charset=utf-8"),
         "timeline.js": ("timeline.js", "text/javascript; charset=utf-8"),
         "app.css": ("app.css", "text/css; charset=utf-8"),
+        "graph.js": ("graph.js", "text/javascript; charset=utf-8"),
+        "graph_logic.js": ("graph_logic.js", "text/javascript; charset=utf-8"),
+        "cytoscape.min.js": ("cytoscape.min.js", "text/javascript; charset=utf-8"),
+        "cytoscape.LICENSE": ("cytoscape.LICENSE", "text/plain; charset=utf-8"),
         "review": ("index.html", "text/html; charset=utf-8"),
     }
     ui_headers = {
