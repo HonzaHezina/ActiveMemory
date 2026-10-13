@@ -6,7 +6,7 @@
   const S = window.AMShell;
   const $ = (id) => document.getElementById(id);
   const TEXT = ["model_base_url", "model_name", "embedding_base_url", "embedding_model"];
-  const CHECK = ["allow_model_calls", "judge_enabled", "auto_propose"];
+  const CHECK = ["allow_model_calls", "judge_enabled", "auto_propose", "recommend_enabled"];
   const state = { view: null };
 
   const radios = () => [...document.querySelectorAll('input[name="extraction_mode"]')];
@@ -27,18 +27,19 @@
     for (const key of TEXT) $("s-" + key).value = r[key];
     for (const key of CHECK) $("s-" + key).checked = !!r[key];
     $("s-similarity_mode").value = r.similarity_mode;
+    $("s-max_recommend_calls").value = r.max_recommend_calls;
     $("s-model_api_key").value = ""; $("s-embedding_api_key").value = "";
     $("s-model-key-state").textContent = view.secrets.model_api_key ? "Klíč je nastaven (nezobrazuje se)." : "Klíč není nastaven.";
     $("s-emb-key-state").textContent = view.secrets.embedding_api_key ? "Klíč je nastaven (nezobrazuje se)." : "Klíč není nastaven.";
     consent();
     const a = view.active;
     $("settings-info").textContent = "Právě aktivní: extrakce " + (a.extraction === "llm" ? "modelem" : "dodaná (bez modelu)") +
-      " · embeddingy " + (a.embeddings ? "zapnuty" : "vypnuty") + " · posuzování vazeb " + (a.judge ? "zapnuto" : "vypnuto") +
+      " · embeddingy " + (a.embeddings ? "zapnuty" : "vypnuty") + " · posuzování vazeb " + (a.judge ? "zapnuto" : "vypnuto") + " · rady modelu " + (a.recommendations ? "zapnuty" : "vypnuty") +
       (view.overridden.length ? " · nastaveno v rozhraní (přepisuje prostředí serveru)" : " · nastavení ze serveru");
     const u = view.usage;
     const line = (name, x) => x ? name + ": volání " + x.calls + (x.prompt_tokens !== undefined ? ", tokeny vstup/výstup " + x.prompt_tokens + "/" + x.completion_tokens : x.tokens !== undefined ? ", tokeny " + x.tokens : "") : name + ": nezapnuto";
     $("settings-state").replaceChildren(
-      ...[line("Extrakce", u.extractor), line("Embeddingy", u.embedder), line("Posuzování vazeb", u.judge),
+      ...[line("Extrakce", u.extractor), line("Embeddingy", u.embedder), line("Posuzování vazeb", u.judge), line("Rady modelu", u.recommender),
         "Čítače platí od posledního startu serveru."].map((t) => Object.assign(document.createElement("div"), { textContent: t })));
   }
 
@@ -52,7 +53,7 @@
   function consent() {
     syncPresets();
     const hosts = new Set();
-    if (mode() === "llm" || $("s-judge_enabled").checked) hosts.add(hostOf($("s-model_base_url").value));
+    if (mode() === "llm" || $("s-judge_enabled").checked || $("s-recommend_enabled").checked) hosts.add(hostOf($("s-model_base_url").value));
     if ($("s-similarity_mode").value === "embedding") hosts.add(hostOf($("s-embedding_base_url").value));
     $("s-consent-text").textContent = hosts.size
       ? "Souhlasím s odesíláním textů zpráv poskytovateli: " + [...hosts].join(", ") + ". Bez tohoto souhlasu se nic neodešle."
@@ -66,6 +67,8 @@
     for (const key of TEXT) if ($("s-" + key).value.trim() !== r[key]) out[key] = $("s-" + key).value.trim();
     for (const key of CHECK) if ($("s-" + key).checked !== !!r[key]) out[key] = $("s-" + key).checked;
     if ($("s-similarity_mode").value !== r.similarity_mode) out.similarity_mode = $("s-similarity_mode").value;
+    const cap = parseInt($("s-max_recommend_calls").value, 10);
+    if (!Number.isNaN(cap) && cap !== r.max_recommend_calls) out.max_recommend_calls = cap;
     if ($("s-model_api_key").value) out.model_api_key = $("s-model_api_key").value;
     if ($("s-embedding_api_key").value) out.embedding_api_key = $("s-embedding_api_key").value;
     return out;
@@ -87,7 +90,7 @@
     if (!state.view) return;
     const body = changes();
     if (!Object.keys(body).length) { result("Nic se nezměnilo."); return; }
-    const wantsModel = (body.extraction_mode || state.view.runtime.extraction_mode) === "llm";
+    const wantsModel = (body.extraction_mode || state.view.runtime.extraction_mode) === "llm" || $("s-recommend_enabled").checked;
     if (wantsModel && !$("s-allow_model_calls").checked) {
       result("Model se nezapne bez vašeho souhlasu s odesíláním textů (bod 3).", true);
       return;
@@ -140,6 +143,6 @@
   $("s-test-embedding").addEventListener("click", () => test("embedding"));
   $("s-emb-preset").addEventListener("change", (e) => { if (e.target.value) { $("s-embedding_base_url").value = e.target.value; consent(); } });
   $("s-preset").addEventListener("change", (e) => { if (e.target.value) { $("s-model_base_url").value = e.target.value; consent(); } });
-  for (const id of ["s-model_base_url", "s-embedding_base_url", "s-similarity_mode", "s-judge_enabled"]) $(id).addEventListener("input", consent);
+  for (const id of ["s-model_base_url", "s-embedding_base_url", "s-similarity_mode", "s-judge_enabled", "s-recommend_enabled"]) $(id).addEventListener("input", consent);
   for (const radio of radios()) radio.addEventListener("change", consent);
 })();

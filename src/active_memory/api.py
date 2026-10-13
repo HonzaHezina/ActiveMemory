@@ -15,7 +15,16 @@ from pydantic import ValidationError
 
 from .engine import build_context, public_node, search
 from .journal import Conflict
-from .models import LinkInput, LLMSettingsUpdate, Message, ProviderTest, Query, Review, utcnow
+from .models import (
+    LinkInput,
+    LLMSettingsUpdate,
+    Message,
+    ProviderTest,
+    Query,
+    RecommendRun,
+    Review,
+    utcnow,
+)
 from .service import AuditGap, MemoryService
 from .settings import Settings
 from .similarity import clusters
@@ -245,10 +254,27 @@ def create_app(settings=None):
         relation: str | None = None,
         cursor: str | None = None,
         limit: int = URLQuery(default=25, ge=1, le=100),
+        recommendation: Literal["confirm", "reject", "unsure", "none", "stale"] | None = None,
         client=Depends(read),
     ):
         """Review queue: projection items with evidence, contributions and audit consistency."""
-        return service.candidates(kind, status, relation, cursor, limit)
+        return service.candidates(kind, status, relation, cursor, limit, recommendation)
+
+    @app.post("/v1/recommendations/run", status_code=202)
+    async def recommend_run(request: RecommendRun, client=Depends(admin)):
+        """Start a background run: the model advises on candidates without current advice.
+
+        Advice never changes a status; the human decision stays with /review.
+        """
+        return service.recommend_start(request.limit, client["id"])
+
+    @app.get("/v1/recommendations/status")
+    def recommend_status(client=Depends(read)):
+        return {**service.recommend_state, "enabled": bool(service.recommender)}
+
+    @app.get("/v1/recommendations/summary")
+    def recommend_summary(client=Depends(read)):
+        return service.recommendation_summary()
 
     @app.get("/v1/candidates/{kind}/{item_id}")
     def candidate(kind: Literal["node", "link"], item_id: str, client=Depends(read)):

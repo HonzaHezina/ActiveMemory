@@ -21,6 +21,7 @@ EVENT_TYPES = (
     "candidate.confirmed",
     "candidate.rejected",
     "candidate.snapshot",
+    "candidate.recommended",
     "context.assembled",
     "source.deleted",
 )
@@ -81,6 +82,21 @@ class Snapshot(Strict):
     note: str
 
 
+class Recommended(Strict):
+    """A model's opinion about a candidate. It is not a decision and never changes the state.
+
+    The model's reason text is deliberately not part of the event (it paraphrases source text and
+    must disappear with the source); it is stored separately and served only to authorised readers.
+    """
+
+    recommendation: Literal["confirm", "reject", "unsure"]
+    confidence: float = Field(ge=0, le=1)
+    model: str
+    provider: str | None = None
+    evidence_fingerprint: str
+    reason_stored: bool = True
+
+
 class ContextAssembled(Strict):
     requester: str
     items_returned: int = Field(ge=0)
@@ -102,6 +118,7 @@ DATA_MODELS = {
     "candidate.confirmed": Decision,
     "candidate.rejected": Decision,
     "candidate.snapshot": Snapshot,
+    "candidate.recommended": Recommended,
     "context.assembled": ContextAssembled,
     "source.deleted": SourceDeleted,
 }

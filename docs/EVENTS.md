@@ -104,6 +104,22 @@ událostí. `occurred_at` je `null` (původní čas neznáme), `recorded_at` je 
 ```
 `basis`: `baseline_snapshot` | `reconciliation`. U `reconciliation` je `previous_state` poslední známý stav.
 
+### `candidate.recommended`
+
+Rada modelu k návrhu. **Není to rozhodnutí a nemění stav**: `previous_state` i `new_state` jsou `null` a stav
+návrhu (a tím i konzistence auditu) se z této události nikdy neodvozuje. Aktor je `{kind: "model", identifier: <název modelu>,
+assurance: "internal"}`; `provenance` odkazuje na zdroje návrhu. Text důvodu, který model napsal, v události **není**
+(parafrázuje zdroj a musí zmizet s ním); je uložen zvlášť a vydává se jen autorizovaným čtenářům u návrhu
+(`recommendation.reason`), po smazání zdroje se maže.
+
+```json
+"data": {"recommendation": "confirm", "confidence": 0.86, "model": "mistral-small", "provider": "api.mistral.ai",
+         "evidence_fingerprint": "5f2c…", "reason_stored": true}
+```
+
+`recommendation`: `confirm` | `reject` | `unsure`. `evidence_fingerprint` identifikuje znění návrhu a jeho citace, ke kterým rada
+patří; změní-li se (přibyla evidence), je rada označena `stale` a lze ji vyžádat znovu.
+
 ### `context.assembled`
 Dokončené sestavení kontextu (`POST /v1/context`), zapsané před vydáním odpovědi.
 `subject` = `{memory_scope, <scope>}`, `actor.identifier` = autentizovaný žadatel.

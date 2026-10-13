@@ -42,6 +42,8 @@ class Settings(BaseSettings):
     judge_enabled: bool = False
     max_judge_calls: int = Field(default=20, ge=0, le=500)
     auto_propose: bool = False
+    recommend_enabled: bool = False
+    max_recommend_calls: int = Field(default=50, ge=0, le=500)
     timeout_seconds: int = Field(default=120, ge=5, le=600)
 
     @model_validator(mode="after")
@@ -68,6 +70,10 @@ class Settings(BaseSettings):
             raise ValueError("embedding_api_key required for embedding similarity")
         if self.judge_enabled and not self.model_api_key:
             raise ValueError("model_api_key required for the relation judge")
+        if self.recommend_enabled and not self.allow_model_calls:
+            raise ValueError("explicit MEMORY_ALLOW_MODEL_CALLS=true required")
+        if self.recommend_enabled and not self.model_api_key:
+            raise ValueError("model_api_key required for model recommendations")
         if self.backend == "neo4j" and not self.neo4j_password:
             raise ValueError("neo4j_password required")
         if not self.scope.startswith("personal:"):
@@ -120,6 +126,8 @@ RUNTIME_FIELDS = (
     "judge_enabled",
     "max_judge_calls",
     "auto_propose",
+    "recommend_enabled",
+    "max_recommend_calls",
 )
 SECRET_FIELDS = ("model_api_key", "embedding_api_key")
 OVERRIDE_FILE = "settings.override.json"

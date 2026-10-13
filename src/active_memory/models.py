@@ -152,7 +152,21 @@ class LLMSettingsUpdate(Strict):
     judge_enabled: bool | None = None
     max_judge_calls: int | None = Field(default=None, ge=0, le=500)
     auto_propose: bool | None = None
+    recommend_enabled: bool | None = None
+    max_recommend_calls: int | None = Field(default=None, ge=0, le=500)
 
 
 class ProviderTest(Strict):
     target: Literal["model", "embedding"]
+
+
+class Recommendation(Strict):
+    """What the model answers about one candidate. Advice only; a human still decides."""
+
+    recommendation: Literal["confirm", "reject", "unsure"]
+    confidence: float = Field(ge=0, le=1)
+    reason: str = Field(min_length=1, max_length=600)
+
+
+class RecommendRun(Strict):
+    limit: int = Field(default=10, ge=1, le=500)

@@ -104,7 +104,10 @@ def test_ui_logic_unit_tests_pass():
 def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_in_memory():
     code = (UI / "review.js").read_text(encoding="utf-8")
     assert set(re.findall(r'call\("(POST|PUT|PATCH|DELETE)"', code)) == {"POST"}
-    assert code.count('call("POST"') == 1 and "/review" in code
+    assert code.count('call("POST"') == 2 and "/review" in code  # decide + start advice run
+    assert '"/v1/recommendations/run"' in code and "/v1/recommendations/run" not in code.replace(
+        '"/v1/recommendations/run"', ""
+    )
     assert "?token" not in code and "token=" not in code and "history." not in code
     assert "expected_status" in code and "verifyDecision" in code  # conflicts + fresh-read check
     assert "disabled: !decision.allowed || busy" in code  # blocked while a request runs

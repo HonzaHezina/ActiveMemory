@@ -1,5 +1,7 @@
 import asyncio
 import copy
+import hashlib
+import json
 import logging
 import re
 import time
@@ -13,7 +15,13 @@ from .engine import add_extraction, consolidate, identity, remove_episode
 from .graph import Neo4jGraph, ReferenceGraph
 from .journal import Conflict, Journal
 from .models import Extraction, Message, utcnow
-from .providers import GraphitiAdapter, LLMExtractor, LLMRelationJudge, OpenAIEmbeddings
+from .providers import (
+    GraphitiAdapter,
+    LLMExtractor,
+    LLMRecommender,
+    LLMRelationJudge,
+    OpenAIEmbeddings,
+)
 from .settings import (
     RUNTIME_FIELDS,
     SECRET_FIELDS,
@@ -94,6 +102,15 @@ class MemoryService:
             OpenAIEmbeddings(settings) if settings.similarity_mode == "embedding" else None
         )
         self.judge = LLMRelationJudge(settings) if settings.judge_enabled else None
+        self.recommender = LLMRecommender(settings) if settings.recommend_enabled else None
+        self.recommend_state = {
+            "running": False,
+            "done": 0,
+            "total": 0,
+            "failed": 0,
+            "report": None,
+        }
+        self._recommend_task = None
 
     async def initialize(self):
         if self.graphiti:
@@ -121,11 +138,13 @@ class MemoryService:
                 "extraction": "llm" if self.extractor else "provided",
                 "embeddings": bool(self.embedder),
                 "judge": bool(self.judge),
+                "recommendations": bool(self.recommender),
             },
             "usage": {
                 "extractor": getattr(self.extractor, "usage", None),
                 "embedder": getattr(self.embedder, "usage", None),
                 "judge": getattr(self.judge, "usage", None),
+                "recommender": getattr(self.recommender, "usage", None),
             },
         }
 
@@ -154,6 +173,7 @@ class MemoryService:
             extractor = LLMExtractor(new) if new.extraction_mode == "llm" else None
             embedder = OpenAIEmbeddings(new) if new.similarity_mode == "embedding" else None
             judge = LLMRelationJudge(new) if new.judge_enabled else None
+            recommender = LLMRecommender(new) if new.recommend_enabled else None
             save_overrides(new.data_dir, {k: merged[k] for k in RUNTIME_FIELDS})
             self.settings, self.extractor, self.embedder, self.judge = (
                 new,
@@ -161,6 +181,7 @@ class MemoryService:
                 embedder,
                 judge,
             )
+            self.recommender = recommender
             self.overridden = sorted(RUNTIME_FIELDS)
             # Names only: no values, no keys. This is operational audit, not a public event.
             self.journal.audit(actor, "settings_changed", ",".join(sorted(changed)))
@@ -630,6 +651,12 @@ class MemoryService:
             if self.graphiti and payload["role"] == "user":
                 await self.graphiti.rebuild_without(episode_id, self.journal)
             updated = copy.deepcopy(self.state)
+            citing = [
+                f"{kind}:{r['id']}"
+                for kind, table in (("node", self.state["nodes"]), ("link", self.state["edges"]))
+                for r in table.values()
+                if any(e["episode_id"] == episode_id for e in r["evidence"])
+            ]
             remove_episode(updated, episode_id)
             self.commit(updated)
             cleaned = ["live_journal", "active_graph"] + (
@@ -639,6 +666,7 @@ class MemoryService:
             self.journal.erase(
                 episode_id,
                 actor,
+                purge=citing,
                 event=ev.build(
                     "source.deleted",
                     actor=principal(actor),
@@ -675,7 +703,210 @@ class MemoryService:
         )
 
     # -- candidate queue (a read model over the projection and the event log) ------------
-    def candidate_view(self, kind, record):
+    def candidate_view(self, kind, record, recs=None):
+        view = self._candidate_core(kind, record)
+        recs = self.journal.recommendations() if recs is None else recs
+        advice = self.recommendation_view(kind, record, recs.get(f"{kind}:{record['id']}"))
+        view["recommendation"] = advice
+        view["recommendation_agrees"] = None
+        decision = view["decision"]
+        if advice and not advice["stale"] and decision and advice["recommendation"] != "unsure":
+            wanted = (
+                "candidate.confirmed"
+                if advice["recommendation"] == "confirm"
+                else "candidate.rejected"
+            )
+            view["recommendation_agrees"] = decision["type"] == wanted
+        return view
+
+    # -- model recommendations (advice only; AM-021) ---------------------------------------
+    @staticmethod
+    def fingerprint(kind, record):
+        basis = [
+            kind,
+            record["id"],
+            record.get("label"),
+            record.get("summary"),
+            record.get("relation"),
+        ]
+        basis.append(sorted((e["episode_id"], e["quote"]) for e in record["evidence"]))
+        return hashlib.sha256(json.dumps(basis, ensure_ascii=False).encode()).hexdigest()[:32]
+
+    def recommendation_view(self, kind, record, row):
+        if not row:
+            return None
+        return {
+            "recommendation": row["recommendation"],
+            "confidence": row["confidence"],
+            "reason": row["reason"],
+            "model": row["model"],
+            "provider": row["provider"],
+            "recorded_at": ev.iso(row["recorded"]),
+            "sequence": row["sequence"],
+            "stale": row["fingerprint"] != self.fingerprint(kind, record),
+        }
+
+    def describe_for_model(self, kind, record):
+        evidence = [{"quote": e["quote"], "role": e.get("role")} for e in record["evidence"][:5]]
+        if kind == "node":
+            return {
+                "proposal": "node",
+                "kind": record["kind"],
+                "label": record["label"],
+                "summary": record["summary"],
+                "evidence": evidence,
+            }
+        nodes = self.state["nodes"]
+
+        def end(key):
+            node = nodes[record[key + "_id"]]
+            return {"kind": node["kind"], "label": node["label"]}
+
+        return {
+            "proposal": "relation",
+            "relation": record["relation"],
+            "source": end("source"),
+            "target": end("target"),
+            "evidence": evidence,
+        }
+
+    def recommend_start(self, limit, actor):
+        if not self.recommender:
+            raise ValueError("model recommendations are not enabled (Nastavení)")
+        if self.recommend_state["running"]:
+            raise Conflict("a recommendation run is already in progress")
+        self.recommend_state = {"running": True, "done": 0, "total": 0, "failed": 0, "report": None}
+        self._recommend_task = asyncio.create_task(self._recommend_job(limit, actor))
+        return self.recommend_state
+
+    async def _recommend_job(self, limit, actor):
+        state = self.recommend_state
+        try:
+            state["report"] = await self.recommend_now(limit, actor, state)
+        except Exception as error:  # class only; provider errors may echo secrets
+            state["report"] = {"error": type(error).__name__}
+        finally:
+            state["running"] = False
+
+    async def recommend_now(self, limit, actor, progress=None):
+        """Ask the model about candidates without current advice. Never changes a status."""
+        if not self.recommender:
+            raise ValueError("model recommendations are not enabled (Nastavení)")
+        self.recommender.transport = self.http_transport
+        limit = min(limit, self.settings.max_recommend_calls)
+        progress = progress if progress is not None else {}
+        run = "recommend-" + uuid4().hex[:12]
+        async with self.lock:
+            existing = self.journal.recommendations()
+            work, waiting = [], 0
+            for _, kind, record in self._candidate_rows("all", "candidate", None):
+                fingerprint = self.fingerprint(kind, record)
+                row = existing.get(f"{kind}:{record['id']}")
+                if row and row["fingerprint"] == fingerprint:
+                    continue
+                if len(work) < limit:
+                    work.append(
+                        (kind, record["id"], fingerprint, self.describe_for_model(kind, record))
+                    )
+                else:
+                    waiting += 1
+            model = self.settings.model_name
+            host = urlparse(self.settings.model_base_url).hostname
+        progress.update(total=len(work), done=0, failed=0)
+        counts = {"confirm": 0, "reject": 0, "unsure": 0}
+        void = 0
+        for kind, record_id, fingerprint, description in work:
+            try:
+                answer = await self.recommender.recommend(description)
+            except Exception as error:
+                progress["failed"] += 1
+                progress["done"] += 1
+                self.journal.audit("system", "recommend_failed", type(error).__name__)
+                continue
+            async with self.lock:
+                table = self.state["nodes"] if kind == "node" else self.state["edges"]
+                record = table.get(record_id)
+                if (
+                    not record
+                    or record["status"] != "candidate"
+                    or self.fingerprint(kind, record) != fingerprint
+                ):
+                    void += 1  # decided or edited while the model was thinking: the advice is void
+                else:
+                    try:
+                        self.journal.save_recommendation(
+                            f"{kind}:{record_id}",
+                            fingerprint,
+                            answer,
+                            ev.build(
+                                "candidate.recommended",
+                                actor={
+                                    "kind": "model",
+                                    "identifier": model,
+                                    "assurance": "internal",
+                                },
+                                subject={"kind": kind, "identifier": record_id},
+                                provenance=sources_of(record),
+                                correlation_id=run,
+                                data={
+                                    "recommendation": answer.recommendation,
+                                    "confidence": answer.confidence,
+                                    "model": model,
+                                    "provider": host,
+                                    "evidence_fingerprint": fingerprint,
+                                },
+                            ),
+                        )
+                        counts[answer.recommendation] += 1
+                    except Exception as error:
+                        progress["failed"] += 1
+                        self.journal.audit("system", "recommend_failed", type(error).__name__)
+            progress["done"] += 1
+        self.journal.audit(actor, "recommend_run", f"{sum(counts.values())}/{len(work)}")
+        return {
+            "considered": len(work),
+            "recommended": counts,
+            "failed": progress["failed"],
+            "void_because_changed": void,
+            "still_without_advice": waiting,
+            "model": model,
+            "provider": host,
+        }
+
+    def recommendation_summary(self):
+        rows = self.journal.recommendations()
+        open_counts = {"confirm": 0, "reject": 0, "unsure": 0, "stale": 0, "none": 0}
+        agreement = {"agreed": 0, "disagreed": 0, "unsure": 0}
+        for kind, table in (("node", self.state["nodes"]), ("link", self.state["edges"])):
+            for record in table.values():
+                row = rows.get(f"{kind}:{record['id']}")
+                current = bool(row) and row["fingerprint"] == self.fingerprint(kind, record)
+                if record["status"] == "candidate":
+                    if not row:
+                        open_counts["none"] += 1
+                    elif not current:
+                        open_counts["stale"] += 1
+                    else:
+                        open_counts[row["recommendation"]] += 1
+                elif current:
+                    if row["recommendation"] == "unsure":
+                        agreement["unsure"] += 1
+                    else:
+                        wanted = "confirmed" if row["recommendation"] == "confirm" else "rejected"
+                        agreement["agreed" if record["status"] == wanted else "disagreed"] += 1
+        return {
+            "open_candidates": open_counts,
+            "decided_with_advice": agreement,
+            "enabled": bool(self.recommender),
+            "model": self.settings.model_name if self.recommender else None,
+            "provider": urlparse(self.settings.model_base_url).hostname
+            if self.recommender
+            else None,
+            "max_per_run": self.settings.max_recommend_calls,
+            "run": self.recommend_state,
+        }
+
+    def _candidate_core(self, kind, record):
         subject = f"{kind}:{record['id']}"
         history = self.journal.subject_events(subject)
         contributions = [
@@ -866,8 +1097,8 @@ class MemoryService:
             "messages": messages,
         }
 
-    def candidates(self, kind="all", status="candidate", relation=None, cursor=None, limit=50):
-        """Stable keyset page: ordered by (first event sequence, id). Unaudited items sort last."""
+    def _candidate_rows(self, kind, status, relation):
+        """Candidates in stable queue order: (first event sequence, kind, id); unaudited last."""
         rows = []
         firsts = self.journal.first_sequences()
         for item_kind, records in (("node", self.state["nodes"]), ("link", self.state["edges"])):
@@ -885,13 +1116,36 @@ class MemoryService:
                 key = (firsts.get(f"{item_kind}:{record['id']}", 10**15), item_kind, record["id"])
                 rows.append((key, item_kind, record))
         rows.sort(key=lambda r: r[0])
+        return rows
+
+    def candidates(
+        self, kind="all", status="candidate", relation=None, cursor=None, limit=50, advice=None
+    ):
+        """Stable keyset page. ``advice``: confirm|reject|unsure|none|stale filters by model advice."""
+        rows = self._candidate_rows(kind, status, relation)
+        recs = self.journal.recommendations()
+        if advice:
+
+            def matches(item):
+                _, item_kind, record = item
+                row = recs.get(f"{item_kind}:{record['id']}")
+                if advice == "none":
+                    return row is None
+                if row is None:
+                    return False
+                stale = row["fingerprint"] != self.fingerprint(item_kind, record)
+                return (
+                    stale if advice == "stale" else (not stale and row["recommendation"] == advice)
+                )
+
+            rows = [r for r in rows if matches(r)]
         total = len(rows)
         if cursor:
             after = parse_cursor(cursor)
             rows = [r for r in rows if r[0] > after]
         page = rows[:limit]
         more = len(rows) > limit
-        items = [self.candidate_view(k, r) for _, k, r in page]
+        items = [self.candidate_view(k, r, recs) for _, k, r in page]
         last = page[-1][0] if page else None
         return {
             "items": items,
@@ -929,6 +1183,8 @@ class MemoryService:
         return self.candidate_view(kind, records[record_id])
 
     async def close(self):
+        if self._recommend_task and not self._recommend_task.done():
+            self._recommend_task.cancel()
         self.graph.close()
         if self.graphiti:
             await self.graphiti.close()

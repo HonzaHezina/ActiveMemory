@@ -49,6 +49,10 @@ class Journal:
             if name not in columns:
                 db.execute(f"ALTER TABLE audit ADD COLUMN {name} TEXT")
         db.executescript("""
+            CREATE TABLE IF NOT EXISTS recommendations(
+              subject TEXT PRIMARY KEY, fingerprint TEXT NOT NULL, recommendation TEXT NOT NULL,
+              confidence REAL NOT NULL, reason TEXT NOT NULL, model TEXT NOT NULL, provider TEXT,
+              recorded REAL NOT NULL, sequence INTEGER NOT NULL);
             CREATE TABLE IF NOT EXISTS event_intents(
               id INTEGER PRIMARY KEY, time REAL NOT NULL, body TEXT NOT NULL);
             CREATE UNIQUE INDEX IF NOT EXISTS audit_event_id ON audit(event_id);
@@ -161,9 +165,11 @@ class Journal:
                 self.audit(actor, "retry", episode_id, db)
         return bool(count)
 
-    def erase(self, episode_id, actor, event=None):
+    def erase(self, episode_id, actor, event=None, purge=()):
         with self.db() as db:
             db.execute("PRAGMA secure_delete=ON")
+            for subject in purge:  # model reasons paraphrase sources: they go with the source
+                db.execute("DELETE FROM recommendations WHERE subject=?", (subject,))
             db.execute("UPDATE episodes SET deleted=1,payload='{}' WHERE id=?", (episode_id,))
             db.execute("DELETE FROM jobs WHERE episode_id=?", (episode_id,))
             self.audit(actor, "erase", episode_id, db, event=event)
@@ -191,6 +197,33 @@ class Journal:
         return self.audit(
             event["actor"]["identifier"], event["type"], event["subject"]["identifier"], db, event
         )
+
+    # -- model recommendations: advice stored beside the log, never part of it ------------
+    def save_recommendation(self, subject, fingerprint, answer, event):
+        """Upsert the current advice and append its (reason-free) event in one transaction."""
+        with self.db() as db:
+            sequence = self.append_event(event, db)
+            data = event["data"]
+            db.execute(
+                "INSERT OR REPLACE INTO recommendations(subject,fingerprint,recommendation,"
+                "confidence,reason,model,provider,recorded,sequence) VALUES(?,?,?,?,?,?,?,?,?)",
+                (
+                    subject,
+                    fingerprint,
+                    answer.recommendation,
+                    answer.confidence,
+                    answer.reason,
+                    data["model"],
+                    data["provider"],
+                    round(time.time(), 6),
+                    sequence,
+                ),
+            )
+            return sequence
+
+    def recommendations(self):
+        with self.db() as db:
+            return {r["subject"]: dict(r) for r in db.execute("SELECT * FROM recommendations")}
 
     # -- intents: bridge between a graph commit and its event ------------------------------
     # An intent is private operational state (not an event, never served): the decision about to

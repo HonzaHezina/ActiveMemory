@@ -43,7 +43,12 @@ def test_defaults_are_off_and_keys_are_never_returned(client):
     view = client.get("/v1/settings").json()
     assert view["runtime"]["extraction_mode"] == "provided"
     assert view["runtime"]["allow_model_calls"] is False
-    assert view["active"] == {"extraction": "provided", "embeddings": False, "judge": False}
+    assert view["active"] == {
+        "extraction": "provided",
+        "embeddings": False,
+        "judge": False,
+        "recommendations": False,
+    }
     assert view["secrets"] == {"model_api_key": False, "embedding_api_key": False}
     changed = put(client, GOOD)
     assert changed.status_code == 200, changed.text

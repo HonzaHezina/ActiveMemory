@@ -128,6 +128,20 @@ Potvrdit/Zamítnout jsou pak zablokována. Demo používá fiktivní konverzace 
 (žádné volání modelu) a kandidáty nechá nerozhodnuté; opakované spuštění nic nepřidá.
 Pro read-only pohled: `uv run active-memory init --client reader --permissions read`.
 
+### Rady modelu (AM-021)
+
+| Endpoint | Oprávnění | Poznámka |
+|---|---|---|
+| POST `/v1/recommendations/run` | admin | spustí na pozadí posouzení až `limit` návrhů bez aktuální rady (strop `max_recommend_calls`); vrací 202, při běžícím běhu 409 |
+| GET `/v1/recommendations/status` | read | průběh posledního běhu (`running`, `done`, `total`, `failed`, `report`) |
+| GET `/v1/recommendations/summary` | read | počty rad u čekajících návrhů, shoda s lidským rozhodnutím u rozhodnutých, zapnuto/vypnuto, model a poskytovatel |
+| GET `/v1/candidates?recommendation=confirm\|reject\|unsure\|none\|stale` | read | filtr fronty podle rady |
+
+Návrh ve `/v1/candidates` obsahuje `recommendation` (`recommendation`, `confidence`, `reason`, `model`, `provider`, `stale`) a po lidském
+rozhodnutí `recommendation_agrees` (`true`/`false`, u `unsure` a zastaralé rady `null`). Rada **nikdy nemění stav**: potvrzení a zamítnutí
+dál provádí jen `/review` s admin tokenem. Model dostane jen znění návrhu a jeho citace (nikoli celé konverzace), citace jsou v promptu
+označené jako nedůvěryhodná data. Zapnutí vyžaduje souhlas s voláním modelu (`recommend_enabled`, Nastavení) a klíč.
+
 ### Nastavení modelu (LLM)
 
 | Endpoint | Oprávnění | Poznámka |

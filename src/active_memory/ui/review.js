@@ -6,7 +6,8 @@
   const S = window.AMShell;
   const $ = (id) => document.getElementById(id);
   const state = {
-    filter: { kind: "all", status: "candidate" },
+    filter: { kind: "all", status: "candidate", rec: "" },
+    advice: null, advicePoll: null, confirmRun: false,
     items: [], total: 0, nextCursor: null, hasMore: false,
     busy: new Set(), expanded: new Set(), focus: null,
   };
@@ -31,6 +32,7 @@
   function queueQuery(cursor) {
     const p = new URLSearchParams({ kind: state.filter.kind, status: state.filter.status, limit: "25" });
     if (cursor) p.set("cursor", cursor);
+    if (state.filter.rec) p.set("recommendation", state.filter.rec);
     return "/v1/candidates?" + p;
   }
 
@@ -50,6 +52,7 @@
     const focus = state.focus ? { kind: state.focus.subject.kind, id: state.focus.subject.identifier } : null;
     await load(focus ? { focus } : {});
     render();
+    loadAdvice();
     S.refreshCount();
   }
 
@@ -78,6 +81,17 @@
       item.audit ? el("div", {}, "Audit: událostí " + item.audit.events + ", poslední zaznamenaný stav " + (item.audit.last_recorded_state || "žádný")) : null);
   }
 
+  function adviceBlock(item) {
+    const a = item.recommendation;
+    if (!a) return null;
+    return el("div", { class: "advice " + a.recommendation + (a.stale ? " stale" : "") },
+      el("div", { class: "advice-head" }, "Názor modelu – rada, ne rozhodnutí"),
+      el("div", {}, R.adviceHead({ model: a.model, provider: a.provider, recommendation: a.recommendation, confidence: a.confidence })),
+      el("div", { class: "advice-reason" }, a.reason),
+      a.stale ? el("div", { class: "warn" }, "Rada je zastaralá: u návrhu mezitím přibyla evidence nebo se změnil. Nechte ji posoudit znovu.") : null,
+      R.agreementText(item) ? el("div", { class: "meta" }, R.agreementText(item)) : null);
+  }
+
   function itemCard(item) {
     const id = idOf(item);
     const decision = R.decisionState(item, S.canDecide);
@@ -101,6 +115,7 @@
         ? el("button", { type: "button", class: "link evidence-extra", onclick: () => { open ? state.expanded.delete(id) : state.expanded.add(id); render(); } },
             open ? "Skrýt ostatní citace" : "Zobrazit všech " + item.evidence.length + " citací")
         : null,
+      adviceBlock(item),
       el("div", { class: "origin" }, item.contributions.length
         ? item.contributions.map((c) => el("div", {}, "Původ: " + R.originText(c)))
         : el("div", {}, "Původ není v auditu doložen.")),
@@ -173,14 +188,71 @@
     }
   }
 
+  // -- model advice panel ----------------------------------------------------------------
+  async function loadAdvice() {
+    try { state.advice = await call("GET", "/v1/recommendations/summary"); } catch (error) { state.advice = null; }
+    renderAdvice();
+  }
+
+  async function startRun() {
+    state.confirmRun = false;
+    try {
+      await call("POST", "/v1/recommendations/run", { limit: Math.min(10, state.advice.max_per_run || 10) });
+      poll();
+    } catch (error) {
+      say("Spuštění selhalo: " + error.message, "error");
+      loadAdvice();
+    }
+  }
+
+  function poll() {
+    clearTimeout(state.advicePoll);
+    state.advicePoll = setTimeout(async () => {
+      if (!S.connected) return;
+      await loadAdvice();
+      if (state.advice && state.advice.run.running) poll();
+      else { const r = state.advice && state.advice.run.report; await refresh(); if (r) say(r.error ? "Doporučování skončilo chybou (" + r.error + ")." : "Hotovo: potvrdit " + r.recommended.confirm + ", zamítnout " + r.recommended.reject + ", nejistých " + r.recommended.unsure + (r.failed ? ", selhalo " + r.failed : "") + (r.void_because_changed ? ", neplatných (mezitím změněno) " + r.void_because_changed : "") + ". Zbývá bez rady: " + r.still_without_advice + ".", r.failed ? "error" : ""); }
+    }, 1200);
+  }
+
+  function renderAdvice() {
+    const box = $("advice-panel");
+    box.replaceChildren();
+    if (!S.connected || !state.advice) return;
+    const a = state.advice;
+    if (!a.enabled) {
+      box.append(el("div", { class: "meta" }, "Rady modelu jsou vypnuté. Model by u každého návrhu napsal „potvrdit / zamítnout“ s důvodem; rozhodujete pořád vy. ",
+        S.canDecide ? el("button", { type: "button", class: "link", onclick: () => S.show("settings") }, "Zapnout v Nastavení") : "Zapnout může administrátor v Nastavení."));
+      return;
+    }
+    const c = a.open_candidates, d = a.decided_with_advice;
+    box.append(el("div", {}, el("strong", {}, "Rady modelu (" + a.model + ", " + a.provider + "): "),
+      "potvrdit " + c.confirm + " · zamítnout " + c.reject + " · nejistých " + c.unsure + " · zastaralých " + c.stale + " · bez rady " + c.none));
+    if (d.agreed + d.disagreed) box.append(el("div", { class: "meta" }, "U vámi rozhodnutých návrhů s radou: shoda " + d.agreed + ", jinak " + d.disagreed + ". Rada nikdy nic nerozhoduje."));
+    if (a.run.running) { box.append(el("div", {}, "Model posuzuje… " + a.run.done + " z " + a.run.total)); return; }
+    if (!S.canDecide) return;
+    const waiting = c.none + c.stale;
+    if (!waiting) { box.append(el("div", { class: "meta" }, "Všechny čekající návrhy mají aktuální radu.")); return; }
+    const n = Math.min(10, a.max_per_run, waiting);
+    if (state.confirmRun) {
+      box.append(el("div", { class: "note" }, "Odešle citace až " + n + " návrhů poskytovateli " + a.provider + " (model " + a.model + "). Model jen poradí, nic nerozhodne. ",
+        el("button", { type: "button", class: "primary", onclick: startRun }, "Odeslat"), " ",
+        el("button", { type: "button", onclick: () => { state.confirmRun = false; renderAdvice(); } }, "Zrušit")));
+    } else {
+      box.append(el("button", { type: "button", disabled: a.max_per_run === 0, onclick: () => { state.confirmRun = true; renderAdvice(); } }, "Nechat model doporučit (až " + n + ")"));
+    }
+  }
+
   S.register("review", {
-    async load(params) { await load(params); },
+    async load(params) { await load(params); loadAdvice(); },
     async show(params) {
       if (params && params.focus) { await load(params); }
       else if (state.focus && !(params && params.focus)) { state.focus = null; await load({}); }
       render();
+      if (S.connected) loadAdvice(); // settings may have changed since the last visit
     },
     clear() {
+      state.advice = null; clearTimeout(state.advicePoll); state.confirmRun = false;
       state.items = []; state.total = 0; state.hasMore = false; state.focus = null;
       state.expanded.clear(); state.busy.clear(); render();
     },
@@ -188,6 +260,7 @@
 
   $("reload").addEventListener("click", () => { state.focus = null; refresh().catch((e) => say(e.message, "error")); });
   $("f-kind").addEventListener("change", (e) => { state.filter.kind = e.target.value; state.focus = null; refresh().catch((x) => say(x.message, "error")); });
+  $("f-rec").addEventListener("change", (e) => { state.filter.rec = e.target.value; state.focus = null; refresh().catch((x) => say(x.message, "error")); });
   $("f-status").addEventListener("change", (e) => { state.filter.status = e.target.value; state.focus = null; refresh().catch((x) => say(x.message, "error")); });
   $("more").addEventListener("click", () => load({}, true).then(render).catch((e) => say(e.message, "error")));
 })();

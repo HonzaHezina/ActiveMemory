@@ -11,12 +11,14 @@
     ABOUT: "Vazba: patří k tématu", SUPPORTS: "Vazba: podporuje", REFINES: "Vazba: zpřesňuje",
     CONTRADICTS: "Vazba: je v rozporu", SUPERSEDES: "Vazba: nahrazuje", ALIAS_OF: "Vazba: totéž jako",
   };
+  const REC = { confirm: "potvrdit", reject: "zamítnout", unsure: "nejistý" };
   const EVENT = {
     "candidate.created": "Návrh vytvořen",
     "candidate.evidence_added": "K návrhu přibyla další evidence",
     "candidate.confirmed": "Návrh potvrzen",
     "candidate.rejected": "Návrh zamítnut",
     "candidate.snapshot": "Stav zaznamenán (snapshot)",
+    "candidate.recommended": "Model doporučil (rada, ne rozhodnutí)",
     "context.assembled": "Sestaven kontext",
     "source.deleted": "Zdroj smazán",
   };
@@ -92,6 +94,20 @@
     return null;
   }
 
+  // One line about a model's advice. Only what was recorded: model, provider and a rounded confidence.
+  function adviceHead(a) {
+    const who = (a.model || "model neuveden") + (a.provider ? " (" + a.provider + ")" : "");
+    return who + " doporučuje: " + (REC[a.recommendation] || a.recommendation) +
+      (typeof a.confidence === "number" ? ", jistota " + Math.round(a.confidence * 100) + " %." : ".");
+  }
+
+  // What to say after the person decided, when the model had given advice.
+  function agreementText(item) {
+    if (item.recommendation_agrees === true) return "Vaše rozhodnutí se shoduje s radou modelu.";
+    if (item.recommendation_agrees === false) return "Rozhodli jste jinak, než model radil.";
+    return "";
+  }
+
   function eventSummary(event) {
     const d = event.data || {};
     switch (event.type) {
@@ -102,6 +118,8 @@
       case "candidate.created":
       case "candidate.evidence_added":
         return originText({ type: event.type, origin: d.origin });
+      case "candidate.recommended":
+        return adviceHead(d) + " Rozhodnutí zůstává na člověku.";
       case "candidate.snapshot":
         return d.note + " Čas původní události je neznámý.";
       case "source.deleted":
@@ -171,7 +189,7 @@
     return parts.length ? parts : [{ text: content, mark: false }];
   }
 
-  const api = { when, markQuotes, STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
+  const api = { REC, adviceHead, agreementText, when, markQuotes, STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AMReview = api;
 })(typeof window !== "undefined" ? window : globalThis);

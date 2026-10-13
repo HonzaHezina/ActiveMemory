@@ -30,7 +30,7 @@ Každý úkol je samostatný commit/PR s behavior testem. Nejdřív osobní pam�
 | AM-019 | konzistence persistence: společný zápis grafu a události (outbox/transakční graf), průběžná rekonciliace, externě kotvený audit |
 | AM-020 | silnější ověření rozhodujícího (OIDC/IAM adapter) místo samotného bearer tokenu |
 
-| AM-021 | model jako pomocník při třídění fronty: doporučení potvrdit/zamítnout s důvodem a citací, zapsané jako událost aktora `model`; rozhodnutí zůstává na člověku (automatické potvrzení modelem by porušilo princip „stroj navrhuje, člověk rozhoduje“, proto jen po výslovném rozhodnutí o produktu) |
+| AM-021 | **První verze hotová**: model radí „potvrdit / zamítnout / nejistý“ s důvodem (ruční spuštění po dávkách, událost `candidate.recommended`, filtr, měření shody s člověkem). Zbývá: automatické doporučení po vložení zprávy, řazení fronty podle jistoty, ověření kvality na reálných datech a teprve po výslovném rozhodnutí o produktu jakákoli forma automatického rozhodování (odlišný stav, odvolatelné, plný log) |
 | AM-022 | více profilů poskytovatelů a přiřazení úloh (extrakce, posuzování vazeb, embeddingy) ke konkrétnímu poskytovateli, limity nákladů a počtu volání, šifrované uložení klíčů, ověření strukturovaného výstupu Gemini/Mistral |
 | AM-023 | konektory z chatovacích aplikací (import exportů, MCP, n8n), přepočet už zpracovaných zpráv po změně modelu |
 

@@ -59,8 +59,10 @@
     <div class="filters">
       <label>Druh <select id="f-kind"><option value="all">vše</option><option value="node">myšlenky a témata</option><option value="link">vazby</option></select></label>
       <label>Stav <select id="f-status"><option value="candidate">čekají na rozhodnutí</option><option value="confirmed">potvrzené</option><option value="rejected">zamítnuté</option><option value="all">všechny</option></select></label>
+      <label>Rada modelu <select id="f-rec"><option value="">(vše)</option><option value="confirm">doporučuje potvrdit</option><option value="reject">doporučuje zamítnout</option><option value="unsure">nejistý</option><option value="none">bez rady</option><option value="stale">rada zastaralá</option></select></label>
       <button type="button" id="reload">Obnovit</button>
     </div>
+    <div id="advice-panel" class="advice-panel" aria-live="polite"></div>
     <p id="queue-info" class="meta"></p>
     <div class="split">
       <div>
@@ -154,6 +156,8 @@
         <label>Klíč embeddingů <input id="s-embedding_api_key" type="password" autocomplete="new-password" placeholder="(ponechte prázdné = beze změny)"></label>
         <p id="s-emb-key-state" class="meta"></p>
         <label class="choice"><input id="s-judge_enabled" type="checkbox"> <span>Nechat model posoudit, zda jsou dvě myšlenky totéž nebo protiklad (jen návrh, rozhoduje člověk).</span></label>
+        <label class="choice"><input id="s-recommend_enabled" type="checkbox"> <span>Povolit modelu doporučovat u návrhů „potvrdit / zamítnout“ (jen rada s důvodem; nikdy nerozhoduje. Odesílá citace návrhů poskytovateli modelu).</span></label>
+        <label>Nejvíc návrhů najednou <input id="s-max_recommend_calls" type="number" min="0" max="500" step="1"></label>
         <label class="choice"><input id="s-auto_propose" type="checkbox"> <span>Po každé nové zprávě automaticky navrhnout vazby.</span></label>
       </fieldset>
       <div class="actions">

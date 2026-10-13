@@ -111,3 +111,17 @@ test("when formats real times and admits unknown ones", () => {
   assert.equal(R.when("není datum"), "čas neznámý");
   assert.match(R.when("2026-10-01T10:00:00Z"), /2026/);
 });
+
+test("advice is worded as advice, with only recorded facts", () => {
+  assert.equal(R.adviceHead({ model: "m1", provider: "llm.example.org", recommendation: "confirm", confidence: 0.86 }),
+    "m1 (llm.example.org) doporučuje: potvrdit, jistota 86 %.");
+  assert.match(R.adviceHead({ recommendation: "unsure" }), /^model neuveden doporučuje: nejistý\.$/);
+  assert.equal(R.agreementText({ recommendation_agrees: true }), "Vaše rozhodnutí se shoduje s radou modelu.");
+  assert.equal(R.agreementText({ recommendation_agrees: false }), "Rozhodli jste jinak, než model radil.");
+  assert.equal(R.agreementText({ recommendation_agrees: null }), "");
+  const row = R.eventRow({ type: "candidate.recommended", recorded_at: "2026-10-01T10:00:00Z", occurred_at: "2026-10-01T10:00:00Z",
+    actor: { kind: "model", identifier: "m1", assurance: "internal" }, subject: { kind: "node", identifier: "n1" }, provenance: [],
+    data: { recommendation: "reject", confidence: 0.4, model: "m1", provider: "x.org" } });
+  assert.match(row.summary, /Rozhodnutí zůstává na člověku/);
+  assert.match(row.label, /rada, ne rozhodnutí/);
+});
