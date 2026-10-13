@@ -95,6 +95,11 @@ def create_app(settings=None):
         "app.js": ("app.js", "text/javascript; charset=utf-8"),
         "logic.js": ("logic.js", "text/javascript; charset=utf-8"),
         "app.css": ("app.css", "text/css; charset=utf-8"),
+        "review": ("review.html", "text/html; charset=utf-8"),
+        "review.html": ("review.html", "text/html; charset=utf-8"),
+        "review.js": ("review.js", "text/javascript; charset=utf-8"),
+        "review_logic.js": ("review_logic.js", "text/javascript; charset=utf-8"),
+        "review.css": ("review.css", "text/css; charset=utf-8"),
     }
     ui_headers = {
         # Static shell only: it holds no data and no secret. Data arrives via the authenticated API
@@ -266,8 +271,10 @@ def create_app(settings=None):
                 raise HTTPException(422, "timestamps require a timezone")
         if bool(subject_kind) != bool(subject_id):
             raise HTTPException(422, "subject_kind and subject_id go together")
-        since = from_.astimezone(timezone.utc).timestamp() if from_ else None
-        until = to.astimezone(timezone.utc).timestamp() if to else None
+        # Stored times are rounded to microseconds; round the bounds identically so a recorded_at
+        # taken from a response always compares equal when sent back as `from`/`to`.
+        since = round(from_.astimezone(timezone.utc).timestamp(), 6) if from_ else None
+        until = round(to.astimezone(timezone.utc).timestamp(), 6) if to else None
         page, more = service.journal.events(
             tuple(type),
             since,

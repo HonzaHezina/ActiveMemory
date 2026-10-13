@@ -18,6 +18,18 @@ Každý úkol je samostatný commit/PR s behavior testem. Nejdřív osobní pam�
 | AM-012 | P2 | IAM boundary implementace | read/write/admin principal adaptér, OIDC validation, audience/issuer/revocation testy; nevybírá předčasně Keycloak/Entra/MidPoint |
 | AM-013 | P2 | remote MCP | authenticated Streamable HTTP s podporovaným SDK/auth kontraktem a testy; stdio bridge zůstává pro lokální klienty |
 
+## Navazující kroky po kontraktu událostí
+
+| ID | Úkol |
+|---|---|
+| AM-014 | editace kandidátů s historií (nová verze + událost, původní zachovat) |
+| AM-015 | mapa témat a vývoje myšlenek nad událostmi (grafová vizualizace) |
+| AM-016 | oddělení rendereru do samostatné komponenty, jež čte jen veřejné REST/události |
+| AM-017 | odběr událostí pro janAGI a další klienty (kurzor je připraven; push/SSE až po rozhodnutí) |
+| AM-018 | další producenti a typy událostí (agenti, předávání práce, lidské brány, kroky bez AI) |
+| AM-019 | konzistence persistence: společný zápis grafu a události (outbox/transakční graf), průběžná rekonciliace, externě kotvený audit |
+| AM-020 | silnější ověření rozhodujícího (OIDC/IAM adapter) místo samotného bearer tokenu |
+
 ## Měřitelné scénáře
 
 - Stejná myšlenka řešená v chatu o IT a v chatu o práci propojí téma; lokální téma chatů se neztratí.

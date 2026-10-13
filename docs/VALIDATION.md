@@ -83,3 +83,19 @@ přežije rebuild, žádný text smazaného zdroje v odvozeném grafu) nebyly do
 
 **Neověřeno:** vzhled a ovládání ve skutečném prohlížeči, embedding/judge kvalita na češtině,
 Compose a Graphiti stack testy, `docker build` s novým package-data.
+
+## Kontrakt událostí, fronta kandidátů a časová osa (2026-10-13)
+
+| Kontrola | Výsledek |
+|---|---|
+| ruff lint + format | prošly |
+| pytest s lokálním Neo4j (`MEMORY_TEST_NEO4J`, `MEMORY_TEST_STACK_URI`) | 89 passed, 2 skipped (Graphiti live) |
+| `tests/test_events.py` (32 testů): schéma, původ a provenance, rozhodnutí s předchozím/novým stavem, idempotence review/ingestu/restartu, `expected_status` 409, 401/403 a oddělení read/write/admin, append-only (API i SQLite triggery), filtry, interval `[from,to)`, kurzorové stránkování při přibývání událostí, kontext (vč. nevydání při selhání zápisu), selhání grafu, selhání zápisu události po commitu grafu + rekonciliace po restartu, smazání zdroje bez obsahu, historická data jen jako snapshot | prošly |
+| Node testy `tests/ui/*.test.js` (logika UI: bezpečné URL, formulace původu, povolení akcí, ověření po rozhodnutí, časová osa, neznámé typy) | prošly (spouští je pytest, je-li dostupný `node`) |
+| Reálný server + `scripts/demo_review_queue.py` dvakrát | 8 zpráv, 19 kandidátů; druhé spuštění 0 nových zpráv a beze změny sekvence událostí |
+| e2e v jsdom proti reálnému serveru (jednorázově, skript není v repu): read-only token (tlačítka zablokovaná s vysvětlením), admin načte frontu, detail zdroje se zvýrazněnou citací, potvrzení i zamítnutí s ověřením v auditu, tlačítka zablokovaná během požadavku a dvojklik pošle jediný požadavek, konflikt z jiného klienta → obnova a srozumitelná zpráva, odpojení smaže data, špatný token → 401 zpráva, žádný script/img z dat, 0 JS chyb | prošlo |
+| Wheel nainstalovaný do čistého venv (`python -I`), server z něj obsluhuje `/ui`, `/ui/review*` | prošlo |
+
+**Neověřeno:** skutečný prohlížeč (vzhled, přístupnost čtečkou, klávesnice); Docker image obsahuje UI
+soubory (nový CI krok `Installed image serves its UI files` zatím neběžel, Docker tu není);
+Compose a Graphiti stack testy; chování událostí s Graphiti rebuildem při mazání.

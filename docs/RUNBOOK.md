@@ -6,7 +6,10 @@
 `/v1/jobs`: pending → running → done; na chybu dvě automatická opakování, pak failed.
 202 znamená přijetí zdroje, teprve done znamená dokončenou extrakci/map update.
 Restart workeru převezme stale lease po 30 minutách. Jeden worker je záměrný limit první verze.
-API access log je vypnutý, audit je actor/action/target/time bez textu. Nejde o neměnný audit.
+API access log je vypnutý, audit je actor/action/target/time bez textu. Strukturované události v1
+(`docs/EVENTS.md`) jsou řádky téže tabulky; triggery brání UPDATE/DELETE, ale audit není nezměnitelný
+proti správci databáze. Zálohuj `journal.sqlite3` společně s grafem; po obnově z nekonzistentních záloh
+se rozdíl projeví jako `candidate.snapshot` (`reconciliation`) při startu.
 
 ## Rotace klíče
 

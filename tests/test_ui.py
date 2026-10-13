@@ -19,6 +19,10 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/app.js", "javascript"),
             ("/ui/logic.js", "javascript"),
             ("/ui/app.css", "text/css"),
+            ("/ui/review", "text/html"),
+            ("/ui/review.js", "javascript"),
+            ("/ui/review_logic.js", "javascript"),
+            ("/ui/review.css", "text/css"),
         ):
             response = anonymous.get(path)
             assert response.status_code == 200 and kind in response.headers["content-type"]
@@ -41,12 +45,11 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
 
 
 def test_ui_has_no_inline_scripts_external_resources_or_html_injection_sinks():
-    html = (UI / "index.html").read_text(encoding="utf-8")
-    assert not re.search(r"<script(?![^>]*\bsrc=)", html) and "onclick=" not in html
-    assert not re.search(r"(?:src|href)=[\"']https?:", html)
-    code = (UI / "app.js").read_text(encoding="utf-8") + (UI / "logic.js").read_text(
-        encoding="utf-8"
-    )
+    for page in ("index.html", "review.html"):
+        html = (UI / page).read_text(encoding="utf-8")
+        assert not re.search(r"<script(?![^>]*[ ]src=)", html) and "onclick=" not in html
+        assert not re.search(r"(?:src|href)=[\"']https?:", html)
+    code = "".join(p.read_text(encoding="utf-8") for p in sorted(UI.glob("*.js")))
     for sink in (
         "innerHTML",
         "outerHTML",
@@ -55,6 +58,9 @@ def test_ui_has_no_inline_scripts_external_resources_or_html_injection_sinks():
         "eval(",
         "new Function",
         "localStorage",
+        "sessionStorage",
+        "document.cookie",
+        "location.",
     ):
         assert sink not in code, sink
     assert "https://" not in code and "http://" not in code
@@ -76,9 +82,19 @@ def test_ui_marks_candidates_and_never_auto_confirms():
 def test_ui_logic_unit_tests_pass():
     root = Path(__file__).resolve().parent
     result = subprocess.run(
-        ["node", "--test", str(root / "ui" / "logic.test.js")],
+        ["node", "--test", *map(str, sorted((root / "ui").glob("*.test.js")))],
         capture_output=True,
         text=True,
         timeout=120,
     )
     assert result.returncode == 0, result.stdout[-2000:] + result.stderr[-1000:]
+
+
+def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_in_memory():
+    code = (UI / "review.js").read_text(encoding="utf-8")
+    assert set(re.findall(r'call\("(POST|PUT|PATCH|DELETE)"', code)) == {"POST"}
+    assert code.count('call("POST"') == 1 and "/review" in code
+    assert "?token" not in code and "token=" not in code and "history." not in code
+    assert "expected_status" in code and "verifyDecision" in code  # conflicts + fresh-read check
+    assert "disabled: !decision.allowed || busy" in code  # blocked while a request runs
+    assert "Odpojit" in (UI / "review.html").read_text(encoding="utf-8")

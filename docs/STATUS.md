@@ -1,6 +1,7 @@
 # Stav dodaného základu · 2026-10-13
 
-Poslední milníky: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
+Poslední milník: kontrakt událostí v1 ([EVENTS.md](EVENTS.md)), fronta kandidátů a časová osa na `/ui/review`.
+Dříve: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
 
 ## Implementace
 
@@ -25,6 +26,9 @@ Poslední milníky: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo
 | Full hybrid context assembly | Graphiti facts separátně v search; společný context v backlogu AM-011 |
 | Deterministická konsolidace counts/activity | implementováno |
 | Autonomní dreaming/semantic clustering | backlog AM-005; není hotové |
+| Kontrakt událostí v1 nad provozním auditem, `GET /v1/events`, MCP `memory_list_events` | implementováno; append-only přes službu + SQLite triggery; **graf a SQLite nejsou atomické** (viz EVENTS.md) |
+| Fronta kandidátů + časová osa (`/ui/review`) | implementováno; testy API, Node testy logiky, e2e v jsdom; **ne v reálném prohlížeči** |
+| Původ návrhu (dodaná extrakce / model / systém / ruční) | zaznamenán od zavedení auditu; starší kandidáti mají jen `candidate.snapshot` s neznámým původem |
 | Webové UI pro myšlenkovou mapu (`/ui`) | implementováno (AM-004): témata, vývoj ve zdrojích, původní zpráva se zvýrazněnou citací, schvalování uzlů/vazeb, fronta návrhů; ověřeno jednotkovými testy logiky, testy hlaviček/CSP a e2e v jsdom; **v reálném prohlížeči vizuálně neověřeno** |
 | JSONL import normalizovaných zpráv | implementováno |
 | Originální chatbot export connectors | backlog AM-010 |
@@ -40,6 +44,16 @@ Cíl: aktivní myšlenková mapa, kde se stejná myšlenka z různých chatů sp
 - Kontext je lexical + 1-hop; neobsahuje důvod výběru ani Graphiti fakta (AM-011). `as_of` filtruje jen platnost tvrzení, ne to, co už uživatel v dané době napsal (14 takových položek v baseline).
 - Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). UI nemá graf-vizualizaci (hrany/layout); zobrazuje témata a seznamy, ne plátno.
 - Graphiti 0.30.2 s reálným modelem nebyl dosud spuštěn.
+
+## Události a audit: přesné mezery
+
+- Admin token neprokazuje, že rozhodl člověk (`actor.assurance=bearer_token`); jiné ověření neexistuje.
+- Mezi změnou grafu a zápisem události není společná transakce. Selhání zápisu po potvrzení grafu se projeví jako `audit.consistent=false`
+  a 503; srovnání proběhne jen při startu (`candidate.snapshot`/`reconciliation`), ne průběžně.
+- Triggery chrání před chybou aplikace, ne před správcem databáze. Audit není podepsaný ani externě kotvený.
+- `target_assistant` kontextu je vždy neznámý. Odběr událostí je jen dotazováním kurzorem (žádné SSE/WebSocket).
+- Fronta počítá pořadí z auditu na každý dotaz (O(N) nad počtem kandidátů); pro velké grafy viz AM-006.
+- Zdrojové zprávy nemají externí URL, proto UI žádné externí odkazy neukazuje.
 
 ## Praktické limity
 

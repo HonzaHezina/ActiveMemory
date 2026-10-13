@@ -180,7 +180,7 @@ class Journal:
         cursor = db.execute(
             "INSERT INTO audit(time,actor,action,target,event,event_id,subject) "
             "VALUES(?,?,?,?,?,?,?)",
-            (time.time(), actor, action, target, document, event_id, subject),
+            (round(time.time(), 6), actor, action, target, document, event_id, subject),
         )
         return cursor.lastrowid
 

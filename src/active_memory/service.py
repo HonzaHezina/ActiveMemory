@@ -320,10 +320,12 @@ class MemoryService:
             episode = self.journal.get(link.episode_id)
             if not episode or link.quote not in episode["content"]:
                 raise ValueError("link needs an exact quote in a live source episode")
-            updated = copy.deepcopy(self.state)
             edge_id = identity(
                 link.source_id, link.relation, link.target_id, link.episode_id, link.quote
             )
+            if edge_id in self.state["edges"]:
+                return self.state["edges"][edge_id]  # same proposal again: no reset, no new event
+            updated = copy.deepcopy(self.state)
             updated["edges"][edge_id] = {
                 "id": edge_id,
                 **link.model_dump(mode="json"),

@@ -227,6 +227,15 @@ def test_link_review_and_manual_link_events(client):
         "score": None,
     }
     client.post(f"/v1/links/{link['id']}/review", json={"status": "confirmed"})
+    body = {
+        "source_id": goal["id"],
+        "target_id": theme["id"],
+        "relation": "SUPPORTS",
+        "episode_id": source,
+        "quote": QUOTE,
+    }
+    repeated = client.post("/v1/links", json=body).json()  # re-proposing must not reset the review
+    assert repeated["status"] == "confirmed"
     again = events(client, subject_kind="link", subject_id=link["id"])["events"]
     assert [e["type"] for e in again] == ["candidate.created", "candidate.confirmed"]
 

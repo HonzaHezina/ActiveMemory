@@ -6,6 +6,7 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 
 | Endpoint | Právo | Význam |
 |---|---|---|
+| GET `/ui/review` | žádné (statický shell bez dat) | fronta kandidátů + časová osa; viz sekce Fronta ke schválení |
 | GET `/ui` | žádné (statický shell bez dat) | prohlížeč mapy; token se zadává na stránce a drží jen v paměti záložky; přísné CSP |
 | GET `/healthz` | žádné | proces žije |
 | GET `/readyz` | žádné | journal a graph backend dostupné; neověřuje dostupnost modelu |
@@ -14,7 +15,11 @@ Scope určuje server, request žádný scope/group/tenant nepřijímá.
 | POST `/v1/search` | read | active items; volitelně Graphiti inferred facts |
 | POST `/v1/context` | read | vybraný reviewed kontext s citacemi |
 | GET `/v1/map?limit=500` | read | uzly, vazby a `clusters` (skupiny uzlů spojené potvrzeným ALIAS_OF); počet a truncated flag |
-| POST `/v1/nodes/{id}/review` | admin | confirmed/rejected |
+| GET `/v1/whoami` | libovolný platný token | `client_id` a `permissions` presentovaného tokenu (UI podle toho nabízí akce; server vynucuje vždy) |
+| GET `/v1/events` | read | verzovaný veřejný log událostí, filtry, kurzor; viz [EVENTS.md](EVENTS.md) |
+| GET `/v1/candidates` | read | stránkovaná fronta kandidátů (uzly/vazby) s evidencemi, původem příspěvků a stavem auditu |
+| GET `/v1/candidates/{node\|link}/{id}` | read | jeden kandidát (po rozhodnutí slouží k ověření stavu) |
+| POST `/v1/nodes/{id}/review` | admin | confirmed/rejected; volitelné `expected_status` (jiný aktuální stav → 409); opakované stejné rozhodnutí nic nemění a nezapíše událost |
 | POST `/v1/links` | admin | kandidát vazby s citací ve zdroji |
 | POST `/v1/links/{id}/review` | admin | review vazby (confirmed/rejected; odmítnutý návrh se znovu nenavrhne) |
 | GET `/v1/links?status=&relation=` | read | vazby s krátkým popisem konců, citacemi a u návrhů `proposal` (skóre, signály, důvod, metoda) |
@@ -94,3 +99,30 @@ Je to **stdio bridge**, nikoli remote HTTP MCP/OAuth server.
 
 Bridge nenabízí admin nástroje. Používej read token pro běžného asistenta.
 Konkrétní aplikace musí umět MCP stdio nebo REST; podpora MCP není sama přístupem do všech chatbotů.
+
+## Fronta ke schválení a události
+
+`GET /v1/candidates?kind=node|link|all&status=candidate|confirmed|rejected|all&relation=&cursor=&limit=` (limit 1–100,
+výchozí 25). Řazení je stabilní podle (pořadí první události, druh, id); `next_cursor` je neprůhledný řetězec,
+`total` počet všech odpovídajících, `has_more` říká, zda existuje další stránka. Položka obsahuje přesné citace
+(`evidence[]`: `quote`, `role`, `occurred_at`, `message_id`, `conversation_id`, `source_system`, `episode_id`,
+`url` – vždy `null`, protože zprávy žádné externí URL nenesou), `contributions[]` (původ každého příspěvku z
+událostí), poslední `decision` a `audit` (`consistent`, `last_recorded_state`). Stav je vždy z projekce;
+`audit.consistent=false` znamená, že projekce a log nesouhlasí.
+
+Hlavička `X-Correlation-Id` (volitelná) se přenese do události rozhodnutí, kontextu nebo smazání.
+503 u rozhodnutí s textem „applied but … not recorded“ značí změnu bez zapsané události (viz EVENTS.md).
+
+## Spuštění UI a dema
+
+```bash
+uv run active-memory init                 # vypíše owner token (read+write+admin)
+uv run active-memory serve                # reference režim, bez LLM a Neo4j
+# v druhém terminálu
+export MEMORY_CLIENT_API_KEY='TOKEN'      # Windows: $env:MEMORY_CLIENT_API_KEY='TOKEN'
+uv run python scripts/demo_review_queue.py
+```
+Otevři `http://127.0.0.1:8080/ui/review`, vlož token. Token s jen `read` smí prohlížet, tlačítka
+Potvrdit/Zamítnout jsou pak zablokována. Demo používá fiktivní konverzace a extrakce dodané skriptem
+(žádné volání modelu) a kandidáty nechá nerozhodnuté; opakované spuštění nic nepřidá.
+Pro read-only pohled: `uv run active-memory init --client reader --permissions read`.
