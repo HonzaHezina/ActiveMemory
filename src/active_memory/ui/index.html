@@ -115,6 +115,22 @@
     <button type="button" id="older" hidden>Starší události</button>
   </section>
 
+  <section data-view="paste" aria-labelledby="paste-h" hidden>
+    <h2 id="paste-h">Vložit konverzaci</h2>
+    <p class="lead">Zkopírujte konverzaci z libovolného chatu a vložte ji sem. Funguje i tam, kde export neexistuje. Mluvčí se poznají podle značek na začátku řádku
+      (<code>Vy:</code>, <code>You said:</code>, <code>ChatGPT:</code>, <code>Claude:</code>, <code>Gemini:</code> a podobně). Před odesláním uvidíte rozdělení na zprávy a u každé můžete změnit, kdo mluví.
+      Vložený text nemá původní časy, použije se datum níž. Nic z toho není potvrzeno, dokud to neschválíte. Vyžaduje token s právem zápisu.</p>
+    <p id="paste-info" class="meta"></p>
+    <p class="filters"><label for="paste-title">Název</label> <input id="paste-title" maxlength="100" placeholder="např. Plán zahrady">
+      <label for="paste-day">Datum konverzace</label> <input id="paste-day" type="date"></p>
+    <p><textarea id="paste-text" rows="10" class="wide" aria-label="Text konverzace" placeholder="Vložte sem celou konverzaci…"></textarea></p>
+    <p><button type="button" id="paste-parse">Rozdělit na zprávy</button></p>
+    <p id="paste-preview" class="meta" aria-live="polite"></p>
+    <ol id="paste-list" class="cards"></ol>
+    <p><button type="button" id="paste-send" class="primary" hidden>Odeslat</button></p>
+    <div id="paste-result" class="note" hidden role="status"></div>
+  </section>
+
   <section data-view="settings" aria-labelledby="settings-h" hidden>
     <h2 id="settings-h">Nastavení modelu (LLM)</h2>
     <p class="lead">Tady určíte, jestli a kde pracuje jazykový model na pozadí: při zpracování každé nové zprávy, při hledání podobných myšlenek a při posuzování vazeb.

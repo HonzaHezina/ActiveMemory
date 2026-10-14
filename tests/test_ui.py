@@ -129,7 +129,7 @@ def test_all_views_share_one_page_so_the_token_survives_navigation():
         "settings",
         "help",
     ):
-        assert f'data-view="{view}"' in html
+        assert f'<section data-view="{view}"' in html  # the section itself, not just a menu button
     # Views never navigate away: no links between pages, so nothing forces a reconnect.
     assert "<a " not in html
     for name in (
