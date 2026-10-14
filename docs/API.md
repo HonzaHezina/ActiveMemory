@@ -97,6 +97,7 @@ Je to **stdio bridge**, nikoli remote HTTP MCP/OAuth server.
 | memory_map | aktivní mapa |
 | memory_get_source | původní epizoda |
 | memory_add_message | jen při MEMORY_MCP_ALLOW_WRITE=true a API write právu |
+| memory_save_conversation | jen při MEMORY_MCP_ALLOW_WRITE=true: asistent na požádání uloží celou konverzaci (název, zprávy `user`/`assistant`, volitelně `app` a `date`) jako zdroj `mcp-<app>`; ID z názvu, data a obsahu, takže opakování nic nezdvojí; zprávy s podezřením na heslo server odmítne a ostatní projdou. Je to **přepis od asistenta, ne export aplikace**: nemusí být doslovný, proto je to v názvu konverzace („přepsal asistent“). Nic neprohlásí za potvrzené |
 
 Bridge nenabízí admin nástroje. Používej read token pro běžného asistenta.
 Konkrétní aplikace musí umět MCP stdio nebo REST; podpora MCP není sama přístupem do všech chatbotů.
