@@ -118,7 +118,7 @@
       adviceBlock(item),
       el("div", { class: "origin" }, item.contributions.length
         ? item.contributions.map((c) => el("div", {}, "Původ: " + R.originText(c)))
-        : el("div", {}, "Původ není v auditu doložen.")),
+        : el("div", {}, "Původ není zaznamenán.")),
       !item.audit.consistent && item.status === "candidate" ? el("div", { class: "warn" }, "Audit nesouhlasí s aktuálním stavem.") : null,
       item.decision ? el("p", { class: "meta" }, "Rozhodl " + item.decision.actor.identifier + " (ověřeno tokenem) · " + R.when(item.decision.recorded_at)) : null,
       buttons,
@@ -176,7 +176,7 @@
       await call("POST", path, { status: wanted, expected_status: item.status });
       const fresh = await call("GET", "/v1/candidates/" + item.subject.kind + "/" + item.subject.identifier);
       const problem = R.verifyDecision(fresh, wanted);
-      say(problem || (wanted === "confirmed" ? "Potvrzeno a ověřeno v auditu." : "Zamítnuto a ověřeno v auditu."), problem ? "error" : "");
+      say(problem || (wanted === "confirmed" ? "Potvrzeno. Rozhodnutí je zapsané v časové ose." : "Zamítnuto. Rozhodnutí je zapsané v časové ose."), problem ? "error" : "");
     } catch (error) {
       if (error.status === 409) say("Stav se mezitím změnil jinde (" + error.message + "). Data jsou obnovena; rozhodněte znovu, pokud je to potřeba.", "error");
       else if (error.status === 403) say("Rozhodnutí odmítnuto: token nemá oprávnění admin.", "error");
