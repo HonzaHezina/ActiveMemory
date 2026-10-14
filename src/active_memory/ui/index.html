@@ -30,7 +30,6 @@
   <button type="button" data-view="map" data-tab="proposals">Návrhy vazeb <span id="proposal-count" class="count"></span></button>
   <button type="button" data-view="timeline">Časová osa</button>
   <button type="button" data-view="paste">Vložit konverzaci</button>
-  <button type="button" data-view="import">Import z ChatGPT</button>
   <button type="button" data-view="settings">Nastavení</button>
   <button type="button" data-view="help">Nápověda</button>
 </nav>
@@ -116,41 +115,6 @@
     <button type="button" id="older" hidden>Starší události</button>
   </section>
 
-  <section data-view="import" aria-labelledby="import-h" hidden>
-    <h2 id="import-h">Import z ChatGPT</h2>
-    <p class="lead">Nahrajte soubor <code>conversations.json</code> z exportu ChatGPT (Nastavení → Správa dat → Exportovat data, soubor je v e-mailem poslaném zipu).
-      Soubor se čte jen v tomto okně. Pak si v seznamu zaškrtnete konverzace, které chcete importovat, a odešlou se až po stisku tlačítka (zprávy aktuální větve s původními časy).
-      Zprávy se vloží stejně jako od jiných klientů; nic z nich není potvrzeno, dokud to neschválíte. Vyžaduje token s právem zápisu.</p>
-    <p id="import-info" class="meta"></p>
-    <p><label for="import-file">Soubor conversations.json</label> <input type="file" id="import-file" accept=".json,application/json"></p>
-    <p id="import-preview" class="meta" aria-live="polite"></p>
-    <div id="import-picker" hidden>
-      <p class="filters"><label for="import-filter">Hledat v názvech</label> <input type="search" id="import-filter" autocomplete="off">
-        <button type="button" id="import-all">Označit zobrazené</button> <button type="button" id="import-none">Zrušit označení</button></p>
-      <ul id="import-list" class="cards"></ul>
-      <p id="import-chosen" class="meta" aria-live="polite"></p>
-    </div>
-    <p><button type="button" id="import-start" class="primary" hidden>Odeslat zprávy</button>
-      <button type="button" id="import-cancel" hidden>Zastavit</button></p>
-    <div id="import-result" class="note" hidden role="status"></div>
-  </section>
-
-  <section data-view="paste" aria-labelledby="paste-h" hidden>
-    <h2 id="paste-h">Vložit konverzaci</h2>
-    <p class="lead">Zkopírujte konverzaci z libovolného chatu a vložte ji sem. Funguje i tam, kde export neexistuje. Mluvčí se poznají podle značek na začátku řádku
-      (<code>Vy:</code>, <code>You said:</code>, <code>ChatGPT:</code>, <code>Claude:</code>, <code>Gemini:</code> a podobně). Před odesláním uvidíte rozdělení na zprávy a u každé můžete změnit, kdo mluví.
-      Vložený text nemá původní časy, použije se datum níž. Nic z toho není potvrzeno, dokud to neschválíte. Vyžaduje token s právem zápisu.</p>
-    <p id="paste-info" class="meta"></p>
-    <p class="filters"><label for="paste-title">Název</label> <input id="paste-title" maxlength="100" placeholder="např. Plán zahrady">
-      <label for="paste-day">Datum konverzace</label> <input id="paste-day" type="date"></p>
-    <p><textarea id="paste-text" rows="10" class="wide" aria-label="Text konverzace" placeholder="Vložte sem celou konverzaci…"></textarea></p>
-    <p><button type="button" id="paste-parse">Rozdělit na zprávy</button></p>
-    <p id="paste-preview" class="meta" aria-live="polite"></p>
-    <ol id="paste-list" class="cards"></ol>
-    <p><button type="button" id="paste-send" class="primary" hidden>Odeslat</button></p>
-    <div id="paste-result" class="note" hidden role="status"></div>
-  </section>
-
   <section data-view="settings" aria-labelledby="settings-h" hidden>
     <h2 id="settings-h">Nastavení modelu (LLM)</h2>
     <p class="lead">Tady určíte, jestli a kde pracuje jazykový model na pozadí: při zpracování každé nové zprávy, při hledání podobných myšlenek a při posuzování vazeb.
@@ -233,7 +197,7 @@
       <dt>Čas zprávy</dt><dd>Pokud zpráva původní čas nemá, je to čas vložení a konverzace to v názvu říká.</dd>
     </dl>
     <h3>Co je a není hotové</h3>
-    <p class="meta">Rozhraní je zatím jen pro čtení a rozhodování. Napojení na jednotlivé chatovací aplikace zatím není hotové: konverzace se do paměti vkládají přes API, MCP, importní skript stránku Import (export ChatGPT) nebo Vložit konverzaci. Úpravy návrhů, hromadné akce a odběr událostí pro další aplikace jsou v plánu.</p>
+    <p class="meta">Rozhraní je zatím jen pro čtení a rozhodování. Napojení na jednotlivé chatovací aplikace zatím není hotové: konverzace se do paměti vkládají přes API, MCP, importní skript stránku Vložit konverzaci. Úpravy návrhů, hromadné akce a odběr událostí pro další aplikace jsou v plánu.</p>
   </section>
 </main>
 <script src="/ui/shell.js"></script>
@@ -241,14 +205,13 @@
 <script src="/ui/logic.js"></script>
 <script src="/ui/review_logic.js"></script>
 <script src="/ui/graph_logic.js"></script>
-<script src="/ui/import_logic.js"></script>
+<script src="/ui/paste_logic.js"></script>
 <script src="/ui/app.js"></script>
 <script src="/ui/review.js"></script>
 <script src="/ui/conv.js"></script>
 <script src="/ui/timeline.js"></script>
 <script src="/ui/graph.js"></script>
 <script src="/ui/settings.js"></script>
-<script src="/ui/import.js"></script>
 <script src="/ui/paste.js"></script>
 </body>
 </html>

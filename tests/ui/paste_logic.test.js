@@ -1,6 +1,6 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const I = require("../../src/active_memory/ui/import_logic.js");
+const I = require("../../src/active_memory/ui/paste_logic.js");
 
 test("splits by speaker markers, including 'You said:' with the text on the next line", () => {
   const r = I.parsePaste("You said:\nAhoj, potřebuji radu\nse zahradou.\nChatGPT said:\nSamozřejmě.\n\nVy: Díky\n**Claude:** Rádo se stalo");

@@ -39,7 +39,7 @@
 
   function parse() {
     say("");
-    const r = window.AMImport.parsePaste($("paste-text").value);
+    const r = window.AMPaste.parsePaste($("paste-text").value);
     state.messages = r.messages;
     $("paste-preview").textContent = !r.messages.length ? "Není co odeslat: vložte text konverzace."
       : r.marked ? "Rozděleno na " + r.messages.length + " zpráv podle značek mluvčích." + (r.preamble ? " Text před první značkou (" + r.preamble + " znaků) se nepoužije." : "") + " Zkontrolujte, kdo mluví."
@@ -50,7 +50,7 @@
   async function send() {
     if (state.running || !state.messages.length) return;
     const day = $("paste-day").value || today();
-    const bodies = window.AMImport.pasteBodies(state.messages, $("paste-title").value, day);
+    const bodies = window.AMPaste.pasteBodies(state.messages, $("paste-title").value, day);
     const skipped = state.messages.length - bodies.length;
     state.running = true; $("paste-send").disabled = true;
     let fresh = 0; const rejected = [];
@@ -66,7 +66,7 @@
       }
       say("Odesláno " + bodies.length + " zpráv, nových " + fresh +
         (rejected.length ? ", odmítnuto serverem " + rejected.length + " (např. podezření na heslo nebo klíč v textu: " + rejected[0] + ")" : "") +
-        (skipped ? ", přeskočeno delších než " + window.AMImport.LIMIT + " znaků: " + skipped : "") +
+        (skipped ? ", přeskočeno delších než " + window.AMPaste.LIMIT + " znaků: " + skipped : "") +
         ". Stejné vložení znovu nic nezdvojí. Najdete to v Konverzacích pod názvem s datem vložení.", rejected.length > 0);
     } catch (error) {
       say("Odesílání se zastavilo: " + error.message + (error.status === 403 ? " Vkládání potřebuje token s právem zápisu (write)." : ""), true);
