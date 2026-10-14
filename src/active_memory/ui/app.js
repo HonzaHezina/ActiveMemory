@@ -278,7 +278,9 @@
     const cards = state.links
       .filter((l) => l.relation !== "ABOUT" && l.status === state.linkFilter.status && (state.linkFilter.relation === "all" || l.relation === state.linkFilter.relation))
       .map(L.proposalCard);
-    if (!cards.length) detail.append(el("p", { class: "empty" }, "Žádné vazby v tomto stavu."));
+    if (!cards.length) detail.append(el("p", { class: "empty" }, state.linkFilter.status === "candidate"
+      ? "Žádné čekající návrhy vazeb. Tlačítko „Navrhnout nové vazby“ hledá podobné myšlenky z různých konverzací; bez zapnutého modelu najde jen téměř shodné formulace."
+      : "Žádné vazby v tomto stavu."));
     for (const card of cards) {
       detail.append(
         el(

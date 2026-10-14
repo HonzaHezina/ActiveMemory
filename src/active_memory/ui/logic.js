@@ -150,7 +150,8 @@
       nodes: nodes.length,
       themes: nodes.filter((n) => n.kind === "Theme").length,
       candidates: nodes.filter((n) => n.status === "candidate").length,
-      openProposals: (links || []).filter((l) => l.status === "candidate").length,
+      // Same rule as the proposals list: the links that put a node under a theme (ABOUT) are not proposals.
+      openProposals: (links || []).filter((l) => l.status === "candidate" && l.relation !== "ABOUT").length,
       truncated: Boolean(map.truncated),
     };
   }

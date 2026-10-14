@@ -100,3 +100,11 @@ test("summary counts candidates and open proposals", () => {
   assert.equal(s.openProposals, 1);
   assert.equal(s.candidates, 6);
 });
+
+test("theme links (ABOUT) are not counted as proposals", () => {
+  const s = L.summary(map, [
+    { status: "candidate", relation: "ABOUT" }, { status: "candidate", relation: "ABOUT" },
+    { status: "candidate", relation: "SUPPORTS" }, { status: "confirmed", relation: "SUPPORTS" },
+  ]);
+  assert.equal(s.openProposals, 1);
+});
