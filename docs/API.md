@@ -172,7 +172,7 @@ s OpenAI (předvolby v UI); jejich podpora strukturovaného výstupu a kvalita �
 
 ### Import vlastních konverzací
 
-Stejný export lze nahrát ze stránky **Import** v UI (soubor se čte v prohlížeči, odešle se až po stisku tlačítka, token potřebuje právo `write`).
+Stejný export lze nahrát ze stránky **Import** v UI (soubor se čte v prohlížeči, v seznamu zaškrtnete, které konverzace chcete, a odešlou se až po stisku tlačítka, token potřebuje právo `write`).
 
 `scripts/import_chatgpt_export.py conversations.json [--dry-run]` nahraje oficiální export z ChatGPT (aktuální větev každé konverzace, původní časy, ID zpráv z exportu, takže opakování je bezpečné; `--dry-run` jen spočítá). Ověřeno jen na syntetickém souboru podle dokumentované struktury, na skutečném exportu zatím ne.
 

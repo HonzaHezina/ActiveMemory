@@ -118,11 +118,17 @@
   <section data-view="import" aria-labelledby="import-h" hidden>
     <h2 id="import-h">Import z ChatGPT</h2>
     <p class="lead">Nahrajte soubor <code>conversations.json</code> z exportu ChatGPT (Nastavení → Správa dat → Exportovat data, soubor je v e-mailem poslaném zipu).
-      Soubor se čte jen v tomto okně. Odešle se až po stisku tlačítka, a to zprávy aktuální větve každé konverzace s původními časy.
+      Soubor se čte jen v tomto okně. Pak si v seznamu zaškrtnete konverzace, které chcete importovat, a odešlou se až po stisku tlačítka (zprávy aktuální větve s původními časy).
       Zprávy se vloží stejně jako od jiných klientů; nic z nich není potvrzeno, dokud to neschválíte. Vyžaduje token s právem zápisu.</p>
     <p id="import-info" class="meta"></p>
     <p><label for="import-file">Soubor conversations.json</label> <input type="file" id="import-file" accept=".json,application/json"></p>
     <p id="import-preview" class="meta" aria-live="polite"></p>
+    <div id="import-picker" hidden>
+      <p class="filters"><label for="import-filter">Hledat v názvech</label> <input type="search" id="import-filter" autocomplete="off">
+        <button type="button" id="import-all">Označit zobrazené</button> <button type="button" id="import-none">Zrušit označení</button></p>
+      <ul id="import-list" class="cards"></ul>
+      <p id="import-chosen" class="meta" aria-live="polite"></p>
+    </div>
     <p><button type="button" id="import-start" class="primary" hidden>Odeslat zprávy</button>
       <button type="button" id="import-cancel" hidden>Zastavit</button></p>
     <div id="import-result" class="note" hidden role="status"></div>

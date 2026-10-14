@@ -28,7 +28,7 @@
   }
 
   function convert(conversations) {
-    const bodies = [], skipped = { empty_or_not_text: 0, other_role: 0, too_long: 0 };
+    const bodies = [], list = [], skipped = { empty_or_not_text: 0, other_role: 0, too_long: 0 };
     let used = 0;
     for (const conversation of conversations) {
       const cid = conversation.conversation_id || conversation.id;
@@ -49,9 +49,13 @@
           occurred_at: new Date(Number(stamp) * 1000).toISOString(),
         });
       }
-      if (bodies.length > before) used++;
+      if (bodies.length > before) {
+        used++;
+        const mine = bodies.slice(before);
+        list.push({ id: String(cid), title: String(conversation.title || ""), bodies: mine, first: mine[0].occurred_at, last: mine[mine.length - 1].occurred_at });
+      }
     }
-    return { bodies, skipped, conversations: used };
+    return { bodies, list, skipped, conversations: used };
   }
 
   const api = { LIMIT, branch, convert };

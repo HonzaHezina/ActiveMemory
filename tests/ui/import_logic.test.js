@@ -25,6 +25,8 @@ test("current branch, in order, original times, counted skips", () => {
   assert.equal(r.bodies[0].message_id, "b");
   assert.deepEqual(r.skipped, { empty_or_not_text: 2, other_role: 1, too_long: 1 });
   assert.equal(r.conversations, 1);
+  assert.equal(r.list.length, 1);
+  assert.deepEqual([r.list[0].id, r.list[0].bodies.length, r.list[0].first < r.list[0].last], ["c1", 3, true]);
 });
 
 test("a cycle or missing ids do not hang or crash", () => {
