@@ -172,6 +172,8 @@ s OpenAI (předvolby v UI); jejich podpora strukturovaného výstupu a kvalita �
 
 ### Import vlastních konverzací
 
+`scripts/import_chatgpt_export.py conversations.json [--dry-run]` nahraje oficiální export z ChatGPT (aktuální větev každé konverzace, původní časy, ID zpráv z exportu, takže opakování je bezpečné; `--dry-run` jen spočítá). Ověřeno jen na syntetickém souboru podle dokumentované struktury, na skutečném exportu zatím ne.
+
 `scripts/import_chats.py chats.json` nahraje konverzace z lokálního JSON souboru (formát je v záhlaví skriptu;
 soubor s osobními daty necommituj). Zprávy dostanou id podle pořadí a čas `start` + 1 minuta na zprávu; pokud neznáš
 původní časy, napiš to do `conversation_id`. Pole `items` jsou extrakce dodané autorem souboru (ne modelem) a zůstávají
