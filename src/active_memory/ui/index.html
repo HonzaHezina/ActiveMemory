@@ -103,6 +103,13 @@
   <section data-view="timeline" aria-labelledby="timeline-h" hidden>
     <h2 id="timeline-h">Časová osa</h2>
     <p id="timeline-info" class="lead"></p>
+    <p class="filters"><label for="period">Období</label>
+      <select id="period">
+        <option value="">Vše</option>
+        <option value="1">Posledních 24 hodin</option>
+        <option value="7">Posledních 7 dní</option>
+        <option value="30">Posledních 30 dní</option>
+      </select></p>
     <ol id="timeline" class="timeline"></ol>
     <button type="button" id="older" hidden>Starší události</button>
   </section>

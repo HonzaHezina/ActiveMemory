@@ -24,6 +24,8 @@
   async function load(older) {
     const p = new URLSearchParams({ order: "desc", limit: "30", expand: "subject" });
     if (older && state.cursor) p.set("cursor", state.cursor);
+    const days = parseInt($("period").value, 10);
+    if (days) p.set("from", new Date(Date.now() - days * 86400000).toISOString());
     const page = await S.call("GET", "/v1/events?" + p);
     state.events = older ? state.events.concat(page.events) : page.events;
     state.cursor = page.next_cursor; state.more = page.has_more;
@@ -59,5 +61,6 @@
     show() { render(); },
     clear() { state.events = []; state.cursor = null; state.more = false; render(); },
   });
+  $("period").addEventListener("change", () => load(false).then(render).catch((e) => S.say(e.message, true)));
   $("older").addEventListener("click", () => load(true).then(render).catch((e) => S.say(e.message, true)));
 })();

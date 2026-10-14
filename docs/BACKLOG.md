@@ -32,6 +32,8 @@ Každý úkol je samostatný commit/PR s behavior testem. Nejdřív osobní pam�
 
 | AM-021 | **První verze hotová**: model radí „potvrdit / zamítnout / nejistý“ s důvodem (ruční spuštění po dávkách, událost `candidate.recommended`, filtr, měření shody s člověkem). Zbývá: automatické doporučení po vložení zprávy, řazení fronty podle jistoty, ověření kvality na reálných datech a teprve po výslovném rozhodnutí o produktu jakákoli forma automatického rozhodování (odlišný stav, odvolatelné, plný log) |
 | AM-022 | více profilů poskytovatelů a přiřazení úloh (extrakce, posuzování vazeb, embeddingy) ke konkrétnímu poskytovateli, limity nákladů a počtu volání, šifrované uložení klíčů, ověření strukturovaného výstupu Gemini/Mistral |
+| AM-024 | slučování podobných uzlů: pozadí navrhne „tyto dva uzly vypadají stejně, sloučit?“; je to nový druh rozhodnutí člověka (návrh, ne automatika), s vlastní událostí a bez kopírování textu. Podnět z externí revize |
+| AM-025 | obousměrný MCP: asistent v živém chatu sám navrhne zápis do paměti; vždy jen jako návrh ke schválení člověkem, s tokenem klienta s právem zápisu, bez kopie obsahu zprávy v události. Navazuje na AM-023. Podnět z externí revize |
 | AM-023 | konektory z chatovacích aplikací (import exportů, MCP, n8n), přepočet už zpracovaných zpráv po změně modelu |
 
 ## Měřitelné scénáře
