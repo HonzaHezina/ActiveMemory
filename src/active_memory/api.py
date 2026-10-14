@@ -254,13 +254,16 @@ def create_app(settings=None):
         kind: Literal["all", "node", "link"] = "all",
         status: Literal["all", "candidate", "confirmed", "rejected"] = "candidate",
         relation: str | None = None,
+        exclude_relation: str | None = None,
         cursor: str | None = None,
         limit: int = URLQuery(default=25, ge=1, le=100),
         recommendation: Literal["confirm", "reject", "unsure", "none", "stale"] | None = None,
         client=Depends(read),
     ):
         """Review queue: projection items with evidence, contributions and audit consistency."""
-        return service.candidates(kind, status, relation, cursor, limit, recommendation)
+        return service.candidates(
+            kind, status, relation, cursor, limit, recommendation, exclude_relation
+        )
 
     @app.post("/v1/recommendations/run", status_code=202)
     async def recommend_run(request: RecommendRun, client=Depends(admin)):

@@ -1107,7 +1107,7 @@ class MemoryService:
             "messages": messages,
         }
 
-    def _candidate_rows(self, kind, status, relation):
+    def _candidate_rows(self, kind, status, relation, exclude_relation=None):
         """Candidates in stable queue order: (first event sequence, kind, id); unaudited last."""
         rows = []
         firsts = self.journal.first_sequences()
@@ -1119,6 +1119,8 @@ class MemoryService:
                     continue
                 if relation and (record.get("relation") != relation):
                     continue
+                if exclude_relation and record.get("relation") == exclude_relation:
+                    continue
                 if item_kind == "link" and not all(
                     record[s + "_id"] in self.state["nodes"] for s in ("source", "target")
                 ):
@@ -1129,10 +1131,17 @@ class MemoryService:
         return rows
 
     def candidates(
-        self, kind="all", status="candidate", relation=None, cursor=None, limit=50, advice=None
+        self,
+        kind="all",
+        status="candidate",
+        relation=None,
+        cursor=None,
+        limit=50,
+        advice=None,
+        exclude_relation=None,
     ):
         """Stable keyset page. ``advice``: confirm|reject|unsure|none|stale filters by model advice."""
-        rows = self._candidate_rows(kind, status, relation)
+        rows = self._candidate_rows(kind, status, relation, exclude_relation)
         recs = self.journal.recommendations()
         if advice:
 

@@ -77,7 +77,7 @@
   async function refreshCount() {
     if (!session.token) { $("review-count").textContent = ""; return; }
     try {
-      const page = await call("GET", "/v1/candidates?kind=all&status=candidate&limit=1");
+      const page = await call("GET", "/v1/candidates?kind=all&exclude_relation=ABOUT&status=candidate&limit=1");
       $("review-count").textContent = page.total ? "(" + page.total + ")" : "";
     } catch (error) { /* the count is a hint; the views report real errors */ }
   }

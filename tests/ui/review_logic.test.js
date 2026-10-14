@@ -125,3 +125,10 @@ test("advice is worded as advice, with only recorded facts", () => {
   assert.match(row.summary, /Rozhodnutí zůstává na člověku/);
   assert.match(row.label, /rada, ne rozhodnutí/);
 });
+
+test("queue kinds: default leaves out theme links, theme links have their own choice", () => {
+  assert.deepEqual(R.queueKind("main"), { kind: "all", exclude_relation: "ABOUT" });
+  assert.deepEqual(R.queueKind("about"), { kind: "link", relation: "ABOUT" });
+  assert.deepEqual(R.queueKind("all"), { kind: "all" });
+  assert.deepEqual(R.queueKind("nonsense"), R.queueKind("main"));
+});

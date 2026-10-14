@@ -189,7 +189,18 @@
     return parts.length ? parts : [{ text: content, mark: false }];
   }
 
-  const api = { REC, adviceHead, agreementText, when, markQuotes, STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
+  // Queue "Druh" choices -> query parameters. The default leaves out the links that put an idea under a
+  // theme (ABOUT): they appear next to every idea, so deciding on the idea is the decision that matters.
+  const QUEUE_KINDS = {
+    main: { kind: "all", exclude_relation: "ABOUT" },
+    node: { kind: "node" },
+    relation: { kind: "link", exclude_relation: "ABOUT" },
+    about: { kind: "link", relation: "ABOUT" },
+    all: { kind: "all" },
+  };
+  function queueKind(choice) { return QUEUE_KINDS[choice] || QUEUE_KINDS.main; }
+
+  const api = { queueKind, REC, adviceHead, agreementText, when, markQuotes, STATUS, ROLE, KIND, EVENT, safeUrl, originText, title, decisionState, verifyDecision, eventRow, eventSummary };
   if (typeof module !== "undefined" && module.exports) module.exports = api;
   else root.AMReview = api;
 })(typeof window !== "undefined" ? window : globalThis);

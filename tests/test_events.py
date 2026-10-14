@@ -705,3 +705,19 @@ def test_manual_link_event_write_failure_is_repaired_with_the_created_event(clie
     assert len(created) == 1 and created[0]["data"]["origin"]["kind"] == "manual"
     assert client.post("/v1/links", json=body).status_code in (200, 201)  # repeat: no new event
     assert len(links_created(client)) == 1
+
+
+def test_exclude_relation_removes_theme_links_from_queue_and_count(client):
+    ingest(client)
+    everything = client.get("/v1/candidates?kind=all&status=candidate", headers=READER).json()
+    plain = client.get(
+        "/v1/candidates?kind=all&status=candidate&exclude_relation=ABOUT", headers=READER
+    ).json()
+    only_about = client.get(
+        "/v1/candidates?kind=link&status=candidate&relation=ABOUT", headers=READER
+    ).json()
+    about = [i for i in everything["items"] if i["subject"]["kind"] == "link"]
+    assert about, "ingest produces ABOUT links to themes"
+    assert plain["total"] == everything["total"] - only_about["total"] > 0
+    assert all(i["subject"]["kind"] == "node" for i in plain["items"])
+    assert only_about["total"] == len(about)

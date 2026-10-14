@@ -6,7 +6,7 @@
   const S = window.AMShell;
   const $ = (id) => document.getElementById(id);
   const state = {
-    filter: { kind: "all", status: "candidate", rec: "" },
+    filter: { kind: "main", status: "candidate", rec: "" },
     advice: null, advicePoll: null, confirmRun: false,
     items: [], total: 0, nextCursor: null, hasMore: false,
     busy: new Set(), expanded: new Set(), focus: null,
@@ -30,7 +30,7 @@
   const idOf = (item) => item.subject.kind + ":" + item.subject.identifier;
 
   function queueQuery(cursor) {
-    const p = new URLSearchParams({ kind: state.filter.kind, status: state.filter.status, limit: "25" });
+    const p = new URLSearchParams(Object.assign({ status: state.filter.status, limit: "25" }, R.queueKind(state.filter.kind)));
     if (cursor) p.set("cursor", cursor);
     if (state.filter.rec) p.set("recommendation", state.filter.rec);
     return "/v1/candidates?" + p;

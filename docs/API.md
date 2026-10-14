@@ -104,7 +104,7 @@ Konkrétní aplikace musí umět MCP stdio nebo REST; podpora MCP není sama př
 
 ## Fronta ke schválení a události
 
-`GET /v1/candidates?kind=node|link|all&status=candidate|confirmed|rejected|all&relation=&cursor=&limit=` (limit 1–100,
+`GET /v1/candidates?kind=node|link|all&status=candidate|confirmed|rejected|all&relation=&exclude_relation=&cursor=&limit=` (limit 1–100,
 výchozí 25). Řazení je stabilní podle (pořadí první události, druh, id); `next_cursor` je neprůhledný řetězec,
 `total` počet všech odpovídajících, `has_more` říká, zda existuje další stránka. Položka obsahuje přesné citace
 (`evidence[]`: `quote`, `role`, `occurred_at`, `message_id`, `conversation_id`, `source_system`, `episode_id`,
@@ -181,3 +181,5 @@ Stránka **Vložit konverzaci** přijme text zkopírovaný z jakéhokoli chatu: 
 soubor s osobními daty necommituj). Zprávy dostanou id podle pořadí a čas `start` + 1 minuta na zprávu; pokud neznáš
 původní časy, napiš to do `conversation_id`. Pole `items` jsou extrakce dodané autorem souboru (ne modelem) a zůstávají
 kandidáty; citace se před odesláním ověří jako přesný text zprávy. Opakované spuštění nic nezdvojí.
+
+`exclude_relation=ABOUT` vynechá vazby „patří k tématu“, které vznikají u každé myšlenky. Pohled Ke schválení je ve výchozím stavu vynechává (včetně čísla v menu), jsou dostupné volbou „zařazení k tématu“; rozhodování se nemění.
