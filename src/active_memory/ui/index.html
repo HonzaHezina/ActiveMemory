@@ -29,7 +29,6 @@
   <button type="button" data-view="map" data-tab="themes">Témata</button>
   <button type="button" data-view="map" data-tab="proposals">Návrhy vazeb <span id="proposal-count" class="count"></span></button>
   <button type="button" data-view="timeline">Časová osa</button>
-  <button type="button" data-view="paste">Vložit konverzaci</button>
   <button type="button" data-view="settings">Nastavení</button>
   <button type="button" data-view="help">Nápověda</button>
 </nav>
@@ -42,6 +41,7 @@
 <main>
   <section data-view="conversations" aria-labelledby="conv-h">
     <h2 id="conv-h">Konverzace</h2>
+    <p><button type="button" id="open-paste">Vložit konverzaci</button></p>
     <p class="lead">Zprávy tak, jak byly dodány. Pod každou zprávou vidíte, co z ní vzniklo, a odtud se dostanete k návrhu nebo na mapu témat.</p>
     <div class="split conv-split">
       <div>
@@ -116,6 +116,7 @@
   </section>
 
   <section data-view="paste" aria-labelledby="paste-h" hidden>
+    <p><button type="button" id="paste-back" class="link">← Zpět na konverzace</button></p>
     <h2 id="paste-h">Vložit konverzaci</h2>
     <p class="lead">Zkopírujte konverzaci z libovolného chatu a vložte ji sem. Funguje i tam, kde export neexistuje. Mluvčí se poznají podle značek na začátku řádku
       (<code>Vy:</code>, <code>You said:</code>, <code>ChatGPT:</code>, <code>Claude:</code>, <code>Gemini:</code> a podobně). Před odesláním uvidíte rozdělení na zprávy a u každé můžete změnit, kdo mluví.

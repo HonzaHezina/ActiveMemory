@@ -47,7 +47,9 @@
 
   function paintNav() {
     for (const button of document.querySelectorAll("#nav button")) {
-      const on = button.dataset.view === session.active && (!button.dataset.tab || button.dataset.tab === session.tab);
+      // The paste page belongs to Conversations: it is opened from there and keeps that menu item lit.
+      const current = session.active === "paste" ? "conversations" : session.active;
+      const on = button.dataset.view === current && (!button.dataset.tab || button.dataset.tab === session.tab);
       button.classList.toggle("active", on);
       if (on) button.setAttribute("aria-current", "page"); else button.removeAttribute("aria-current");
     }

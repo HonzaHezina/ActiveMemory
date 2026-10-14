@@ -86,6 +86,8 @@
       $("paste-preview").textContent = ""; $("paste-list").replaceChildren(); $("paste-send").hidden = true; say("");
     },
   });
+  $("open-paste").addEventListener("click", () => S.show("paste"));
+  $("paste-back").addEventListener("click", () => S.show("conversations"));
   $("paste-parse").addEventListener("click", parse);
   $("paste-send").addEventListener("click", send);
 })();
