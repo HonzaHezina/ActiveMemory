@@ -34,7 +34,7 @@
 </nav>
 <div id="welcome" class="note welcome">
   <strong>Vítejte.</strong> Active Memory ukazuje, co si z vašich konverzací zapamatovat. Stroj navrhuje, rozhodujete vy.
-  Vložte nahoře přístupový token a klikněte na Připojit. Pak v menu otevřete <strong>Konverzace</strong>, potom <strong>Ke schválení</strong>.
+  Vložte nahoře přístupový token a klikněte na Připojit. Pak v menu otevřete <strong>Konverzace</strong> (tam je i <em>Vložit konverzaci</em>), potom <strong>Ke schválení</strong>.
   Víc v <strong>Nápovědě</strong>.
 </div>
 <div id="message" class="message" role="status" aria-live="polite"></div>
@@ -193,28 +193,41 @@
 
   <section data-view="help" aria-labelledby="help-h" hidden>
     <h2 id="help-h">Nápověda</h2>
-    <p class="lead">Active Memory si z vašich konverzací vybírá, co stojí za zapamatování, a ukazuje to k <strong>vašemu</strong> schválení. Nic se nepovažuje za pravdu, dokud to nepotvrdíte.</p>
+    <p class="lead">Active Memory si z vašich konverzací vybírá, co stojí za zapamatování, a ukazuje to k <strong>vašemu</strong> schválení. Stroj navrhuje, rozhodujete vy. Nic se nepovažuje za pravdu, dokud to nepotvrdíte.</p>
     <h3>Jak začít</h3>
     <ol class="steps">
-      <li><strong>Konverzace</strong> – projděte si zprávy tak, jak byly dodány. Pod zprávou je vidět, co z ní vzniklo.</li>
+      <li><strong>Dostaňte dovnitř konverzace</strong> – v <em>Konverzacích</em> je tlačítko <em>Vložit konverzaci</em>. Zkopírujte konverzaci z libovolného chatu a vložte ji. Můžete také v aplikaci s lokálním MCP říct asistentovi „ulož tuto konverzaci“ (viz níže).</li>
+      <li><strong>Konverzace</strong> – projděte si zprávy jako chat. Pod zprávou je vidět, co z ní vzniklo, a odtud se dostanete k návrhu nebo na mapu témat.</li>
       <li><strong>Ke schválení</strong> – u každého návrhu je přesná citace a odkud pochází. Klikněte na <em>Potvrdit</em> nebo <em>Zamítnout</em>.</li>
-      <li><strong>Graf</strong> – souvislosti jedné konverzace nebo tématu na obrázku.</li>
-      <li><strong>Časová osa</strong> – co se skutečně stalo a kdy.</li>
-      <li><strong>Nastavení</strong> – zapnutí modelu, který na pozadí navrhuje z nových zpráv (výchozí stav: vypnuto).</li>
+      <li><strong>Graf</strong> – souvislosti jedné konverzace nebo tématu na obrázku (nejvýše 60 uzlů). <strong>Témata</strong> a <strong>Návrhy vazeb</strong> ukazují, co se opakuje napříč konverzacemi.</li>
+      <li><strong>Časová osa</strong> – co se skutečně stalo a kdy; výběrem období zúžíte poslední den, týden nebo měsíc.</li>
+      <li><strong>Nastavení</strong> – volitelné zapnutí modelu (Gemini, Mistral, OpenAI, Ollama), který na pozadí navrhuje z nových zpráv. Výchozí stav: vypnuto.</li>
     </ol>
+    <h3>Jak dostat dovnitř konverzaci</h3>
+    <dl class="glossary">
+      <dt>Vložit konverzaci</dt><dd>V Konverzacích. Vložený text se rozdělí podle značek mluvčích na začátku řádku (<code>Vy:</code>, <code>You said:</code>, <code>ChatGPT:</code>, <code>Claude:</code>, <code>Gemini:</code> …). Před odesláním ho zkontrolujete a u každé zprávy můžete změnit, kdo mluví. Vložený text nemá původní časy, použije se datum, které zadáte. Stejné vložení znovu nic nezdvojí. Zprávy, které vypadají jako heslo nebo klíč, server odmítne.</dd>
+      <dt>Přes asistenta (MCP)</dt><dd>V aplikaci s lokálním MCP řekněte „ulož tuto konverzaci do Active Memory“. Asistent konverzaci <strong>přepíše sám</strong>, takže nemusí být doslovná; proto je v názvu „přepsal asistent“. Pro důležité konverzace je přesnější vložení textu. Webové chaty bez lokálního MCP zatím nejdou.</dd>
+      <dt>Export a skripty</dt><dd>Oficiální export ChatGPT lze nahrát skriptem v terminálu, další zdroje přes API. Přímé napojení na účty chatovacích aplikací není.</dd>
+    </dl>
+    <h3>Model a rady</h3>
+    <dl class="glossary">
+      <dt>Model na pozadí</dt><dd>Když v Nastavení zapnete model a souhlasíte, <strong>texty vašich zpráv se odesílají zvolenému poskytovateli</strong>. Bez souhlasu a klíče se nic neodešle. Klíč se po uložení nikdy nezobrazí. Embeddingy (hledání podobnosti) používají stejného poskytovatele a klíč, dokud nezadáte vlastní.</dd>
+      <dt>Rady modelu</dt><dd>V <em>Ke schválení</em> můžete nechat model poradit u dávky návrhů: potvrdit, zamítnout, nebo je nejistý, s důvodem. Je to <strong>jen rada</strong>, stav návrhu nikdy nemění a rozhodujete vy. Rada se zaznamená a časem uvidíte, jak často se shoduje s vámi. Když se u návrhu změní důkazy, rada se označí jako zastaralá.</dd>
+      <dt>Co zatím neumím zaručit</dt><dd>Kvalita návrhů a rad na češtině u skutečných poskytovatelů zatím není změřená. Posuzujte je proto vždy podle citace.</dd>
+    </dl>
     <h3>Pojmy</h3>
     <dl class="glossary">
       <dt>Návrh (kandidát)</dt><dd>Myšlenka, téma, cíl, otázka, rozhodnutí nebo fakt, který z konverzace vyvodil klient nebo model. Je podložený citací, ale <strong>není to potvrzený fakt</strong>. Na obrazovce je čárkovaně.</dd>
       <dt>Potvrzeno / zamítnuto</dt><dd>Vaše rozhodnutí. Zamítnutý návrh se znovu nenavrhuje. Každé rozhodnutí se zapíše do časové osy.</dd>
-      <dt>Citace a zdroj</dt><dd>Přesný text zprávy, ze které návrh vznikl. „Otevřít celou konverzaci“ ukáže kontext. Když zdroj smažete, zmizí i jeho obsah.</dd>
+      <dt>Citace a zdroj</dt><dd>Přesný text zprávy, ze které návrh vznikl. „Otevřít celou konverzaci“ ukáže kontext. Když zdroj smažete, zmizí i jeho obsah a vše z něj odvozené.</dd>
       <dt>Původ</dt><dd>Kdo návrh vyrobil: „dodaná extrakce – autor neuveden“ (přišla s daty), model (jen je-li zaznamenán), systém (z podobnosti) nebo ručně.</dd>
       <dt>Téma</dt><dd>Opakující se okruh, ke kterému návrhy patří. Jedno téma může mít zdroje z více konverzací.</dd>
-      <dt>Vazba (návrh vazby)</dt><dd>Souvislost dvou návrhů: podporuje, zpřesňuje, je v rozporu, nahrazuje, je totéž. Také vzniká jen jako návrh a čeká na rozhodnutí.</dd>
-      <dt>Kdo smí co</dt><dd>Prohlížet smí každý platný token. Potvrzovat, zamítat a měnit nastavení smí jen token s oprávněním admin. To ale neprokazuje, že to udělal konkrétní člověk.</dd>
-      <dt>Čas zprávy</dt><dd>Pokud zpráva původní čas nemá, je to čas vložení a konverzace to v názvu říká.</dd>
+      <dt>Vazba (návrh vazby)</dt><dd>Souvislost dvou návrhů: podporuje, zpřesňuje, je v rozporu, nahrazuje, je totéž. Také vzniká jen jako návrh a čeká na rozhodnutí. Potvrzení „totéž“ uzly jen seskupí, nesloučí je.</dd>
+      <dt>Kdo smí co</dt><dd>Prohlížet smí každý platný token. Potvrzovat, zamítat a měnit nastavení smí jen token s oprávněním <em>admin</em>. Vkládat konverzace smí token s oprávněním <em>write</em>. To ale neprokazuje, že rozhodl konkrétní člověk.</dd>
+      <dt>Čas zprávy</dt><dd>Pokud zpráva původní čas nemá (vložený text, přepis od asistenta), je to datum vložení a konverzace to v názvu říká.</dd>
     </dl>
     <h3>Co je a není hotové</h3>
-    <p class="meta">Rozhraní slouží ke čtení, rozhodování, vkládání konverzací a nastavení modelu. Konverzace se dostanou dovnitř třemi způsoby: tlačítkem <em>Vložit konverzaci</em> v Konverzacích (text se rozdělí podle značek mluvčích a před odesláním ho zkontrolujete), asistentem přes MCP („ulož tuto konverzaci“, přepis dělá model a nemusí být doslovný) nebo přes API a skripty. Napojení přímo na účty chatovacích aplikací není. Úpravy návrhů, hromadné akce a odběr událostí pro další aplikace jsou v plánu.</p>
+    <p class="meta">Rozhraní slouží ke čtení, rozhodování, vkládání konverzací a nastavení modelu. Zatím chybí: úpravy návrhů, hromadné akce, automatické rady po vložení zprávy, omezení denních nákladů na modely, vzdálené MCP pro webové chaty a odběr událostí pro další aplikace. Žádné rozhodování za vás model nedělá.</p>
   </section>
 </main>
 <script src="/ui/shell.js"></script>
