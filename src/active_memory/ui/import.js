@@ -83,14 +83,22 @@
     state.running = true; state.cancel = false;
     $("import-start").disabled = true; $("import-cancel").hidden = false;
     let done = 0, fresh = 0;
+    const rejected = [];
     try {
       for (const body of bodies) {
         if (state.cancel) break;
-        const r = await S.call("POST", "/v1/episodes", body);
-        done++; if (!r.duplicate) fresh++;
+        try {
+          const r = await S.call("POST", "/v1/episodes", body);
+          if (!r.duplicate) fresh++;
+        } catch (error) {
+          if (error.status !== 422 && error.status !== 409) throw error;
+          rejected.push(error.message);
+        }
+        done++;
         if (done % 10 === 0 || done === bodies.length) say("Odesláno " + done + " z " + bodies.length + " (nových " + fresh + ").");
       }
       say((state.cancel ? "Zastaveno. " : "Hotovo. ") + "Odesláno " + done + " z " + bodies.length + ", nových " + fresh +
+        (rejected.length ? ", odmítnuto serverem " + rejected.length + " (např. podezření na heslo nebo klíč v textu: " + rejected[0] + ")" : "") +
         ". Opakování je bezpečné, shodné zprávy se přeskočí. Zprávy najdete v Konverzacích.");
     } catch (error) {
       say("Import se zastavil po " + done + " zprávách: " + error.message +

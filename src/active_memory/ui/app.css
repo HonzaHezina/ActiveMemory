@@ -46,6 +46,7 @@ button.ok { border-color: var(--ok); color: var(--ok); font-weight: 600; }
 button.no { border-color: var(--no); color: var(--no); font-weight: 600; }
 button.link { border: 0; background: none; color: var(--accent); padding: 0; text-decoration: underline; }
 button:focus-visible, a:focus-visible, input:focus-visible, select:focus-visible, .card:focus-visible, summary:focus-visible { outline: 3px solid var(--accent); outline-offset: 2px; }
+textarea.wide { width: 100%; max-width: 100%; font: inherit; }
 .filters { display: flex; gap: 10px 16px; flex-wrap: wrap; align-items: center; margin-bottom: 10px; }
 .filters label { display: inline-flex; gap: 6px; align-items: center; }
 

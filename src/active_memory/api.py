@@ -112,6 +112,7 @@ def create_app(settings=None):
         "graph.js": ("graph.js", "text/javascript; charset=utf-8"),
         "settings.js": ("settings.js", "text/javascript; charset=utf-8"),
         "import.js": ("import.js", "text/javascript; charset=utf-8"),
+        "paste.js": ("paste.js", "text/javascript; charset=utf-8"),
         "import_logic.js": ("import_logic.js", "text/javascript; charset=utf-8"),
         "graph_logic.js": ("graph_logic.js", "text/javascript; charset=utf-8"),
         "cytoscape.min.js": ("cytoscape.min.js", "text/javascript; charset=utf-8"),

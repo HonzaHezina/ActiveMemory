@@ -28,6 +28,7 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/graph.js", "javascript"),
             ("/ui/settings.js", "javascript"),
             ("/ui/import.js", "javascript"),
+            ("/ui/paste.js", "javascript"),
             ("/ui/import_logic.js", "javascript"),
             ("/ui/graph_logic.js", "javascript"),
             ("/ui/cytoscape.min.js", "javascript"),
@@ -125,6 +126,7 @@ def test_all_views_share_one_page_so_the_token_survives_navigation():
         "graph",
         "map",
         "timeline",
+        "paste",
         "import",
         "settings",
         "help",
@@ -140,6 +142,7 @@ def test_all_views_share_one_page_so_the_token_survives_navigation():
         "graph.js",
         "settings.js",
         "import.js",
+        "paste.js",
     ):
         code = (UI / name).read_text(encoding="utf-8")
         assert "fetch(" not in code and 'getElementById("token")' not in code, name
