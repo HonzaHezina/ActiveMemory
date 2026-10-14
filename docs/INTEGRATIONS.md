@@ -51,14 +51,22 @@ Audit n8n doplňuje zdejší ingest/review audit. n8n není nutná součást slu
 ## Import chatů
 
 Součástí je normalizovaný JSONL formát `examples/conversations.jsonl` a `scripts/import_jsonl.py`.
-Na import ChatGPT/Claude/Gemini exportů připrav samostatné adaptery podle jejich skutečného
-aktuálního exportního formátu. Tato verze tyto účty nepřipojuje a originální exporty nepřečte sama.
+Cesty, jak konverzaci dostat dovnitř (od nejpřesnější):
+
+1. **Oficiální export** – zatím jen ChatGPT: `scripts/import_chatgpt_export.py conversations.json [--dry-run]`
+   (aktuální větev konverzace, původní časy, ID zpráv z exportu). Ověřeno na syntetickém souboru, ne na skutečném exportu.
+2. **Vložení textu** v UI (Konverzace → Vložit konverzaci): rozdělení podle značek mluvčích, ruční oprava, datum zadá člověk.
+3. **MCP `memory_save_conversation`**: asistent na požádání uloží aktuální konverzaci. Je to přepis modelu, ne export aplikace,
+   proto je v názvu konverzace „přepsal asistent“. Jen lokální stdio; vzdálený MCP pro webové chaty není (AM-025).
+
+Na import Claude/Gemini/Mistral exportů připrav samostatné adaptery podle jejich skutečného aktuálního formátu; ten jsme neviděli.
+Účty se nepřipojují a chaty se nescrapují. Všechny cesty vytvářejí jen zdroje a kandidáty, nic nepotvrzují.
 File/import adapter musí zachovat čas, roli, externí IDs, attachments odkazy a permissions.
 Přílohy nemají být nepozorovaně odkazovány na expirované dočasné URL.
 
 ## Klientské klíče
 
-Owner/admin token patří správci. Reader je pro context. Writer může ukládat návrhy, ale nemůže
+Owner/admin token patří správci. Reader je pro context. Writer může ukládat zprávy (i přes MCP `memory_save_conversation`), ale nemůže
 potvrzovat ani číst. Některý agent může potřebovat read+write; vygeneruj mu vlastní token.
 Na úrovni této osobní instance není ještě per-document ACL. Připojení firemních zdrojů do ní
 není součást scope tohoto projektu.

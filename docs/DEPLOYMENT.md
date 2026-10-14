@@ -64,3 +64,8 @@ Neškáluj horizontálně před AM-006.
 `src/active_memory/ui/cytoscape.min.js` je přibalený Cytoscape.js 3.30.2 (licence MIT, text v `cytoscape.LICENSE`).
 Nenačítá se z CDN (CSP povoluje jen `'self'`). Aktualizace: stáhnout konkrétní verzi z npm balíčku `cytoscape`,
 nahradit soubor i licenci a spustit `pytest` a Node testy.
+
+## Připojení chatovacích aplikací
+
+Dnes funguje jen lokální MCP most (stdio) a REST. Webové chaty (ChatGPT, Claude.ai) by potřebovaly vzdálený MCP přes HTTPS s vlastním
+tokenem jen pro zápis a čtení (nikdy `admin`); ten zatím není implementován (AM-025). Které aplikace a tarify vzdálený MCP podporují, nebylo ověřeno.

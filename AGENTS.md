@@ -22,6 +22,13 @@ Read `README.md`, `docs/STATUS.md`, `docs/ARCHITECTURE.md`, `docs/MEMORY_MODEL.m
 13. Provider and embedder are independent configurations. Changing embedding dimension requires reindexing.
 14. Keep dependencies pinned. Update `uv.lock` and hash-locked `requirements.lock` together.
 15. Do not market pending capabilities as implemented; update STATUS and tests with each milestone.
+16. A model may advise (`candidate.recommended`), never decide. Automatic confirming is a product decision not yet taken;
+    it would need its own status, be revocable and fully logged. Advice reasons stay out of the event log and are purged with the source.
+17. Events never copy message text; they reference sources. Nothing derived may survive deletion of its source.
+18. Secrets are write-only: API keys are never returned, logged or shown. A model key is lent only to the host it was set for
+    (embeddings use the model provider and key only if the host is the same); a different host needs its own key.
+19. Text copied by a model (MCP `memory_save_conversation`) or pasted by a person is a copy, not the app's export: say so in its provenance.
+20. Do not scrape logged-in chats. Connectors read official exports, pasted text or what the user's own assistant sends over MCP.
 
 ## Development
 
@@ -34,6 +41,15 @@ Do not introduce additional writers before replacing snapshot persistence with t
 Tests must verify real behavior: cross-chat recurrence, historical/current retrieval, rejected memory,
 quote validation, auth failures, idempotency, provider failures, restart and live-store deletion.
 Do not remove useful tests or weaken acceptance criteria to get a green run.
+
+## UI rules (`src/active_memory/ui/`)
+
+Single page, vanilla JS, no build step. `shell.js` owns the token (memory only), the menu and `call()`; views register `{load, show, clear}`.
+CSP is `default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'`: no inline script or style, no CDN, no `eval`.
+Render all server and user text with `textContent`/`createTextNode`, never `innerHTML`; no `localStorage`/`location`. Libraries are vendored with their licence.
+A new UI file must be added in three places: the `ui_files` map in `api.py`, the file check in `.github/workflows/ci.yml`, and `tests/test_ui.py`.
+`api.py` changes need a server restart; static files do not. Pure logic goes in `*_logic.js` with a Node test in `tests/ui/`.
+Check UI changes in a real browser (headless Chrome with puppeteer-core), not only jsdom: it found CSP and rendering bugs jsdom did not.
 
 ## Change boundaries
 

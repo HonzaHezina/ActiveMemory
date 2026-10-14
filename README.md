@@ -28,7 +28,9 @@ počítání četnosti napříč chaty, aktivita s časovým útlumem, ruční s
 vazby ABOUT/SUPPORTS/REFINES/CONTRADICTS/SUPERSEDES, vyhledávání a sestavení kontextu
 s citacemi a limitem znaků. Uchovává explicitní časovou platnost `[valid_from, valid_to)`.
 Obsahuje živé smazání zdroje, export, audit operací, Docker/Coolify konfigurace a CI.
-Verzovaný log událostí ([EVENTS.md](docs/EVENTS.md)) a fronta kandidátů s časovou osou na `/ui/review`.
+Verzovaný log událostí ([EVENTS.md](docs/EVENTS.md)) a jednostránkové webové UI na `/ui`: konverzace jako chat, fronta kandidátů
+ke schválení, graf, témata, časová osa, nastavení modelu (Gemini, Mistral, OpenAI, Ollama) a volitelné rady modelu (jen doporučení, rozhoduje člověk).
+Konverzace se dostanou dovnitř vložením textu v UI, MCP nástrojem `memory_save_conversation`, REST API nebo skripty v `scripts/`.
 Návrhy vazeb mezi myšlenkami z různých chatů (vždy `candidate` se zdroji) a webový prohlížeč mapy na `/ui`
 (témata, zdroje s citací, schvalování) viz [STATUS](docs/STATUS.md) a [EVALUATION](docs/EVALUATION.md).
 

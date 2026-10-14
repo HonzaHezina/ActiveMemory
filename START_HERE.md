@@ -29,7 +29,8 @@ uv run active-memory init
 uv run active-memory serve
 ```
 
-Fronta kandidátů: otevři `http://127.0.0.1:8080/ui` a vlož token (jen v paměti stránky).
+Webové UI: otevři `http://127.0.0.1:8080/ui` a vlož token (jen v paměti stránky). Menu: Konverzace (výchozí; odtud i „Vložit konverzaci“),
+Ke schválení, Graf, Témata, Návrhy vazeb, Časová osa, Nastavení, Nápověda.
 Demo kandidátů ke schválení: `uv run python scripts/demo_review_queue.py` (token v `MEMORY_CLIENT_API_KEY`).
 
 V novém terminálu ve stejném adresáři:
@@ -62,7 +63,7 @@ Bez `uv`: `python -m venv .venv`, aktivace venv, `pip install -e '.[dev]'`.
 `requirements.lock`, včetně Graphiti.
 
 V `/docs` klikni Authorize a vlož token. Výsledná mapa je JSON z `/v1/map`.
-Samostatné webové UI je připravený navazující úkol, nepovažuj tento balíček za hotové UI.
+Webové UI na `/ui` existuje, ale je to vývojová verze: viz [docs/STATUS.md](docs/STATUS.md) pro přesné mezery.
 
 ## 3. Předej repo programovacímu agentovi
 
@@ -84,6 +85,10 @@ Spusť MCP bridge s `MEMORY_API_URL` a `MEMORY_CLIENT_API_KEY`, viz
 `config/vscode.mcp.example.json` a `config/mcp.generic.example.json`.
 Na Windows změň command na úplnou cestu `.venv\Scripts\active-memory-mcp.exe`.
 Systémy bez MCP použijí stejné REST API. janAGI potřebuje jen URL a klientský token.
+
+Aby asistent uměl uložit aktuální konverzaci („ulož tuto konverzaci“), vytvoř token s právem zápisu
+(`--permissions read,write`) a spusť bridge s `MEMORY_MCP_ALLOW_WRITE=true`. Nástroj `memory_save_conversation`
+ukládá jen zdroj; nic nepotvrzuje. Přepis dělá model a nemusí být doslovný. Funguje jen v aplikacích s lokálním MCP (stdio).
 
 ## 5. Až pak nasazení na Hetzner/Coolify
 

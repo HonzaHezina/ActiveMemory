@@ -1,6 +1,8 @@
-# Stav dodaného základu · 2026-10-13
+# Stav dodaného základu · 2026-10-14
 
-Poslední milník: kontrakt událostí v1 ([EVENTS.md](EVENTS.md)), fronta kandidátů a časová osa na `/ui/review`.
+Poslední milník: jednostránkové UI (konverzace, fronta ke schválení, graf, témata, časová osa s filtrem období, nastavení modelu), rady modelu,
+předvolby poskytovatelů a tři cesty, jak dostat konverzace dovnitř: vložení textu, MCP nástroj `memory_save_conversation` a skript pro export ChatGPT.
+Dříve: kontrakt událostí v1 ([EVENTS.md](EVENTS.md)), fronta kandidátů a časová osa.
 Dříve: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokálně ověřen, Docker/Graphiti čeká na CI/klíče); AM-002 hotovo (dataset + baseline, [EVALUATION.md](EVALUATION.md)); AM-003 implementováno a testováno s deterministickými/mockovanými signály, **kvalita embeddingů a judge na češtině neměřena**.
 
 ## Implementace
@@ -33,9 +35,10 @@ Dříve: AM-004 UI hotové (`/ui`); AM-001 stack test připraven (Neo4j lokáln�
 | Pohled Graf (Cytoscape.js 3.30.2, MIT, přibalený v `ui/`, bez CDN) | implementováno: jedna konverzace nebo téma, max. 60 uzlů, kandidáti čárkovaně; ověřeno v headless Chrome; vzhled neposouzen uživatelem; u velkého grafu jen zkrácený výběr |
 | Jednostránkové UI s menu (Konverzace jako výchozí, Ke schválení, Graf, Témata, Návrhy vazeb, Časová osa) a propojením konverzace ↔ návrh ↔ mapa | implementováno; testy API, Node testy logiky, e2e v jsdom (přepínání pohledů, propojení, rozhodnutí); čtení konverzací je O(N) nad projekcí; **uživatelsky zkoušeno jen ručně v jednom prohlížeči, bez systematického testu** |
 | Původ návrhu (dodaná extrakce / model / systém / ruční) | zaznamenán od zavedení auditu; starší kandidáti mají jen `candidate.snapshot` s neznámým původem |
-| Webové UI pro myšlenkovou mapu (`/ui`) | implementováno (AM-004): témata, vývoj ve zdrojích, původní zpráva se zvýrazněnou citací, schvalování uzlů/vazeb, fronta návrhů; ověřeno jednotkovými testy logiky, testy hlaviček/CSP a e2e v jsdom; **v reálném prohlížeči vizuálně neověřeno** |
+| Webové UI pro myšlenkovou mapu (`/ui`) | implementováno (AM-004): témata, vývoj ve zdrojích, původní zpráva se zvýrazněnou citací, schvalování uzlů/vazeb, fronta návrhů; ověřeno jednotkovými testy logiky, testy hlaviček/CSP a e2e v jsdom; ověřeno v headless Chrome; uživatel ho ručně prohlížel a vyjádřil se k čitelnosti, systematický test použitelnosti neproběhl |
 | JSONL import normalizovaných zpráv | implementováno |
-| Originální chatbot export connectors | backlog AM-010 |
+| Vložení konverzace do UI (z Konverzací), MCP `memory_save_conversation` (stdio, jen s `MEMORY_MCP_ALLOW_WRITE=true`), skript `scripts/import_chatgpt_export.py` | implementováno; vložení ověřeno testy a v headless Chrome, MCP nástroj skutečným stdio klientem proti lokální instanci; skript jen na syntetickém souboru. **Přepis dělá model a nemusí být doslovný** (proto „přepsal asistent“ v názvu). Vzdálené MCP přes HTTPS pro webové chaty není (AM-025); s žádnou skutečnou chatovací aplikací to nezkoušeno |
+| Originální chatbot export connectors (Claude, Gemini, Mistral) | backlog AM-010 / AM-023; formáty exportů neznáme |
 | Docker/Compose/Coolify/CI | Compose validace a image build prošly v CI; skutečný Coolify deploy zatím neproveden |
 | Enterprise IAM/multi-tenant/security hardening | mimo základ; IAM interface/backlog zachováno |
 
@@ -46,7 +49,7 @@ Cíl: aktivní myšlenková mapa, kde se stejná myšlenka z různých chatů sp
 - Offline (bez modelu) se spojí jen téměř shodná formulace; parafráze vyžadují embeddingy a judge, které jsou implementované, ale na českých datech neprošly měřením (chybí klíče). Práh 0.6 pro embeddingy není kalibrován.
 - Automatické typy SUPPORTS/REFINES/CONTRADICTS vznikají jen přes judge; SUPERSEDES i bez modelu z přesně navazujících intervalů.
 - Kontext je lexical + 1-hop; neobsahuje důvod výběru ani Graphiti fakta (AM-011). `as_of` filtruje jen platnost tvrzení, ne to, co už uživatel v dané době napsal (14 takových položek v baseline).
-- Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). UI nemá graf-vizualizaci (hrany/layout); zobrazuje témata a seznamy, ne plátno.
+- Dreaming je jen deterministická aktivita + návrhy vazeb (AM-005 neimplementováno). Graf (AM-015) je jen pohled na jednu konverzaci nebo téma, nejvýše 60 uzlů, bez vývoje v čase.
 - Graphiti 0.30.2 s reálným modelem nebyl dosud spuštěn.
 
 ## Události a audit: přesné mezery

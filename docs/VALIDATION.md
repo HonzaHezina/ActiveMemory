@@ -101,3 +101,18 @@ Compose a Graphiti stack testy, `docker build` s novým package-data.
 **Neověřeno:** vzhled posouzený člověkem, přístupnost čtečkou obrazovky a klávesnicí, Firefox/Safari; Docker image obsahuje UI
 soubory (nový CI krok `Installed image serves its UI files` zatím neběžel, Docker tu není);
 Compose a Graphiti stack testy; chování událostí s Graphiti rebuildem při mazání.
+
+## UI, nastavení modelu, rady a vkládání konverzací (2026-10-14)
+
+| Kontrola | Výsledek |
+|---|---|
+| ruff lint + format | prošly |
+| pytest (bez Neo4j) | 126 passed, 5 skipped (Neo4j/Graphiti opt-in) |
+| Node testy `tests/ui/*.test.js` | 32 passed |
+| Headless Chrome (puppeteer-core) proti reálnému serveru s **falešným** poskytovatelem: nastavení a předvolby (Gemini, Mistral), rady a filtr, uložení a smazání klíče, klíč se nikdy nezobrazí, vložení konverzace (rozdělení, změna mluvčího, odmítnutí hesla, opakování = 0 nových), filtr časové osy, zvýraznění menu | prošlo; konzole bez chyb (jen očekávané 422 při odmítnutém „heslu“) |
+| MCP `memory_save_conversation`: skutečný stdio klient proti lokální instanci, dvakrát stejná konverzace | uloženo, podruhé 0 nových |
+| `scripts/import_chatgpt_export.py` | jen 2 testy na syntetickém souboru |
+
+**Neověřeno:** skutečné volání Gemini a Mistralu (přijetí schématu `json_schema`, záložní JSON režim, kvalita češtiny a rad, rozměr Mistral embed 1024,
+název Gemini embeddingu), formát skutečného exportu ChatGPT, MCP s reálnou chatovací aplikací, vzdálený MCP, Firefox/Safari, čtečka obrazovky,
+Docker image s novými UI soubory a CI po posledních commitech (nic nebylo pushnuto).

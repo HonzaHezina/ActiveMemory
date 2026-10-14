@@ -1,5 +1,11 @@
 # Prompt k vložení programovacímu agentovi
 
+> **Aktualizace 2026-10-14:** kroky 3–7 níže jsou z velké části hotové (AM-001 až AM-004, události, fronta kandidátů, UI, nastavení modelu,
+> rady modelu, vložení konverzace a MCP `memory_save_conversation`). Skutečný stav a mezery jsou v `docs/STATUS.md`, další práce v `docs/BACKLOG.md`
+> (AM-021 zbytek, AM-022 profily poskytovatelů a limity nákladů, AM-023/AM-025 konektory a vzdálené MCP, AM-019 zbytek). Neověřené zůstává:
+> skutečné volání Gemini/Mistral a kvalita češtiny, Graphiti s modelem, Coolify nasazení. Pravidla jsou v `AGENTS.md`.
+> Text níže je původní zadání prvního běhu.
+
 Pracuješ v novém samostatném repozitáři Active Memory. Načti AGENTS.md, README.md,
 docs/ARCHITECTURE.md, docs/MEMORY_MODEL.md, docs/STATUS.md a docs/BACKLOG.md.
 
