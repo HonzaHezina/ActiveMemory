@@ -113,7 +113,7 @@
   }
 
   window.AMShell = {
-    ApiError, register, show, call, say, refreshCount,
+    ApiError, register, show, call, say, refreshCount, markDirty,
     get canDecide() { return session.canDecide; },
     get connected() { return !!session.token; },
   };

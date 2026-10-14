@@ -27,6 +27,8 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/timeline.js", "javascript"),
             ("/ui/graph.js", "javascript"),
             ("/ui/settings.js", "javascript"),
+            ("/ui/import.js", "javascript"),
+            ("/ui/import_logic.js", "javascript"),
             ("/ui/graph_logic.js", "javascript"),
             ("/ui/cytoscape.min.js", "javascript"),
         ):
@@ -117,11 +119,28 @@ def test_review_page_only_decides_through_the_review_endpoints_and_keeps_token_i
 def test_all_views_share_one_page_so_the_token_survives_navigation():
     html = (UI / "index.html").read_text(encoding="utf-8")
     assert html.count('id="connect"') == 1  # one connect form for every view
-    for view in ("review", "conversations", "graph", "map", "timeline", "settings", "help"):
+    for view in (
+        "review",
+        "conversations",
+        "graph",
+        "map",
+        "timeline",
+        "import",
+        "settings",
+        "help",
+    ):
         assert f'data-view="{view}"' in html
     # Views never navigate away: no links between pages, so nothing forces a reconnect.
     assert "<a " not in html
-    for name in ("app.js", "review.js", "conv.js", "timeline.js", "graph.js", "settings.js"):
+    for name in (
+        "app.js",
+        "review.js",
+        "conv.js",
+        "timeline.js",
+        "graph.js",
+        "settings.js",
+        "import.js",
+    ):
         code = (UI / name).read_text(encoding="utf-8")
         assert "fetch(" not in code and 'getElementById("token")' not in code, name
 
