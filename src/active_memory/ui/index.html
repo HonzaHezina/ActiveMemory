@@ -78,13 +78,15 @@
   <section data-view="graph" aria-labelledby="graph-h" hidden>
     <h2 id="graph-h">Graf</h2>
     <p class="lead">Obrázek jedné konverzace nebo jednoho tématu: co z ní vzniklo a jak to spolu souvisí. Čárkovaně je to, co čeká na schválení; plně to, co je potvrzeno.</p>
-    <div class="filters"><label>Zobrazit <select id="graph-scope"></select></label></div>
+    <div class="filters"><label>Zobrazit <select id="graph-scope"></select></label>
+      <span class="modes" role="group" aria-label="Způsob zobrazení"><button type="button" data-graph-mode="3d" aria-pressed="true">3D</button><button type="button" data-graph-mode="2d" aria-pressed="false">Plošně</button></span></div>
     <p id="graph-info" class="meta"></p>
     <div class="split graph-split">
       <div id="graph-canvas" role="img" aria-label="Graf souvislostí; textový přehled je pod ním"></div>
       <aside id="graph-detail" aria-live="polite"></aside>
     </div>
-    <p class="legend-line meta">Tvary: šestiúhelník = téma, kosočtverec = cíl, elipsa = myšlenka, obdélník = rozhodnutí, sud = konverzace. Tečkovaná čára = „vzniklo z konverzace“.</p>
+    <p id="graph-3d-hint" class="legend-line meta">3D: tažením otáčíte, kolečkem přibližujete, pravým tlačítkem posouváte, kliknutí na kouli ji přiblíží a ukáže detail. Žlutě je návrh, zeleně potvrzeno, modře konverzace.</p>
+    <p class="legend-line meta">Tvary (v plošném zobrazení): šestiúhelník = téma, kosočtverec = cíl, elipsa = myšlenka, obdélník = rozhodnutí, sud = konverzace. Tečkovaná čára = „vzniklo z konverzace“.</p>
     <details class="tech" open><summary>Textový přehled</summary><ul id="graph-overview" class="plain"></ul></details>
   </section>
 
@@ -199,7 +201,7 @@
       <li><strong>Dostaňte dovnitř konverzace</strong> – v <em>Konverzacích</em> je tlačítko <em>Vložit konverzaci</em>. Zkopírujte konverzaci z libovolného chatu a vložte ji. Můžete také v aplikaci s lokálním MCP říct asistentovi „ulož tuto konverzaci“ (viz níže).</li>
       <li><strong>Konverzace</strong> – projděte si zprávy jako chat. Pod zprávou je vidět, co z ní vzniklo, a odtud se dostanete k návrhu nebo na mapu témat.</li>
       <li><strong>Ke schválení</strong> – u každého návrhu je přesná citace a odkud pochází. Klikněte na <em>Potvrdit</em> nebo <em>Zamítnout</em>.</li>
-      <li><strong>Graf</strong> – souvislosti jedné konverzace nebo tématu na obrázku (nejvýše 60 uzlů). <strong>Témata</strong> a <strong>Návrhy vazeb</strong> ukazují, co se opakuje napříč konverzacemi.</li>
+      <li><strong>Graf</strong> – souvislosti jedné konverzace nebo tématu, výchozí je 3D (otáčení tažením, přiblížení kolečkem) nebo tlačítkem <em>Plošně</em> (nejvýše 60 uzlů). <strong>Témata</strong> a <strong>Návrhy vazeb</strong> ukazují, co se opakuje napříč konverzacemi.</li>
       <li><strong>Časová osa</strong> – co se skutečně stalo a kdy; výběrem období zúžíte poslední den, týden nebo měsíc.</li>
       <li><strong>Nastavení</strong> – volitelné zapnutí modelu (Gemini, Mistral, OpenAI, Ollama), který na pozadí navrhuje z nových zpráv. Výchozí stav: vypnuto.</li>
     </ol>
@@ -232,6 +234,7 @@
 </main>
 <script src="/ui/shell.js"></script>
 <script src="/ui/cytoscape.min.js"></script>
+<script src="/ui/3d-force-graph.min.js"></script>
 <script src="/ui/logic.js"></script>
 <script src="/ui/review_logic.js"></script>
 <script src="/ui/graph_logic.js"></script>
@@ -240,6 +243,7 @@
 <script src="/ui/review.js"></script>
 <script src="/ui/conv.js"></script>
 <script src="/ui/timeline.js"></script>
+<script src="/ui/graph3d.js"></script>
 <script src="/ui/graph.js"></script>
 <script src="/ui/settings.js"></script>
 <script src="/ui/paste.js"></script>

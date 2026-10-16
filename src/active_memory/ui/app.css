@@ -131,6 +131,22 @@ mark { background: #ffe58a; color: #000; padding: 0 2px; border-radius: 3px; }
 ul.plain { list-style: none; padding: 0; margin: 8px 0 0; display: grid; gap: 4px; }
 .legend-line { margin: 8px 0; }
 .__________cytoscape_container { position: relative; }
+/* 3d-force-graph injects its CSS as an inline <style>, which the CSP refuses; the vendored copy has that
+   injection disabled (see docs/DEPLOYMENT.md) and the rules it needs are here. Its tooltip is unused. */
+.float-tooltip-kap { display: none; }
+#graph-canvas { position: relative; overflow: hidden; }
+.scene-container .clickable { cursor: pointer; }
+.scene-container .grabbable { cursor: grab; }
+.scene-container .grabbable:active { cursor: grabbing; }
+.g3d-labels { position: absolute; inset: 0; overflow: hidden; pointer-events: none; }
+.g3d-label { position: absolute; left: 0; top: 0; max-width: 160px; font-size: 12px; line-height: 1.2; text-align: center; color: var(--fg); text-shadow: 0 0 3px var(--card), 0 0 3px var(--card), 0 0 6px var(--card); will-change: transform; }
+.g3d-label.theme { font-weight: 700; font-size: 13px; }
+.g3d-label[hidden] { display: none; }
+.modes { display: inline-flex; }
+.modes button { border-radius: 0; }
+.modes button:first-child { border-radius: 8px 0 0 8px; }
+.modes button:last-child { border-radius: 0 8px 8px 0; border-left: 0; }
+.modes button[aria-pressed="true"] { background: var(--accent); border-color: var(--accent); color: #fff; }
 select, input { max-width: 100%; }
 .filters label { max-width: 100%; flex-wrap: wrap; }
 .split > *, #layout > * { min-width: 0; }

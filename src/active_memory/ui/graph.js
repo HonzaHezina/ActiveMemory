@@ -1,5 +1,6 @@
 // Graph view: a read-only picture of one conversation or theme (never the whole memory at once).
-// Cytoscape draws on a canvas, so no server text is ever parsed as HTML; details are built as text.
+// 3D (WebGL, graph3d.js) is the default; Cytoscape draws the flat version, also used without WebGL.
+// Both draw on a canvas, so no server text is ever parsed as HTML; details are built as text.
 // Candidate relations are dashed, confirmed ones solid. A text overview below stays the accessible
 // equivalent of the picture.
 (function () {
@@ -9,7 +10,7 @@
   const G = window.AMGraph;
   const S = window.AMShell;
   const $ = (id) => document.getElementById(id);
-  const state = { map: null, scope: null, graph: null, cy: null, selected: null };
+  const state = { map: null, scope: null, graph: null, cy: null, g3: null, mode: "3d", selected: null };
 
   function el(tag, attrs, ...children) {
     const node = document.createElement(tag);
@@ -105,22 +106,49 @@
   }
 
   // -- drawing -----------------------------------------------------------------------------
+  function clearDrawing() {
+    if (state.cy) { state.cy.destroy(); state.cy = null; }
+    if (state.g3) { window.AMGraph3D.destroy(state.g3); state.g3 = null; }
+  }
+
+  const NOTHING_SELECTED = "Klikněte na uzel nebo vazbu.";
+
   function draw() {
     const box = $("graph-canvas");
-    if (state.cy) { state.cy.destroy(); state.cy = null; }
+    clearDrawing();
     state.graph = G.buildGraph(state.map, state.scope);
     const g = state.graph;
+    const want3d = state.mode === "3d" && window.AMGraph3D && window.AMGraph3D.available();
     $("graph-info").textContent = !g.nodes.length ? "V tomto výběru není nic k zobrazení."
-      : "Zobrazeno uzlů: " + g.shown + (g.truncated ? " z " + g.total + " (zobrazeno jen " + G.MAX_NODES + " nejsilnějších – zúžte výběr)" : "") + ", vazeb: " + g.edges.filter((e) => e.type === "relation").length + ".";
-    $("graph-detail").replaceChildren(el("p", { class: "empty" }, "Klikněte na uzel nebo vazbu."));
+      : "Zobrazeno uzlů: " + g.shown + (g.truncated ? " z " + g.total + " (zobrazeno jen " + G.MAX_NODES + " nejsilnějších – zúžte výběr)" : "") + ", vazeb: " + g.edges.filter((e) => e.type === "relation").length + "."
+        + (state.mode === "3d" && !want3d ? " 3D zobrazení tento prohlížeč nezvládá (chybí WebGL), kreslím plošně." : "");
+    $("graph-detail").replaceChildren(el("p", { class: "empty" }, NOTHING_SELECTED));
+    $("graph-3d-hint").hidden = !want3d || !g.nodes.length;
+    box.classList.toggle("is3d", want3d);
+    for (const button of document.querySelectorAll("[data-graph-mode]")) button.setAttribute("aria-pressed", String(button.dataset.graphMode === (want3d ? "3d" : "2d")));
     renderOverview();
-    if (!g.nodes.length || typeof window.cytoscape !== "function") return;
+    if (!g.nodes.length) return;
+    if (want3d) {
+      try {
+        state.g3 = window.AMGraph3D.render(box, g, {
+          onNode: showDetail, onLink: showDetail,
+          onBackground: () => $("graph-detail").replaceChildren(el("p", { class: "empty" }, NOTHING_SELECTED)),
+        });
+        return;
+      } catch (error) {
+        clearDrawing();
+        box.classList.remove("is3d");
+        $("graph-3d-hint").hidden = true;
+        $("graph-info").textContent += " 3D se nepodařilo spustit, kreslím plošně.";
+      }
+    }
+    if (typeof window.cytoscape !== "function") return;
     state.cy = window.cytoscape({
       container: box, elements: elements(g), style: stylesheet(), minZoom: 0.3, maxZoom: 2.5, wheelSensitivity: 0.3,
       layout: { name: "cose", animate: false, nodeRepulsion: 40000, idealEdgeLength: 140, nodeOverlap: 30, padding: 40, randomize: true, componentSpacing: 120, numIter: 1500 },
     });
     state.cy.on("tap", "node, edge", (event) => showDetail(event.target.id()));
-    state.cy.on("tap", (event) => { if (event.target === state.cy) $("graph-detail").replaceChildren(el("p", { class: "empty" }, "Klikněte na uzel nebo vazbu.")); });
+    state.cy.on("tap", (event) => { if (event.target === state.cy) $("graph-detail").replaceChildren(el("p", { class: "empty" }, NOTHING_SELECTED)); });
   }
 
   function renderOverview() {
@@ -131,7 +159,7 @@
     const rel = g.edges.filter((e) => e.type === "relation");
     list.append(el("li", {}, el("strong", {}, "Uzly (" + nodes.length + ")")));
     for (const n of nodes) {
-      list.append(el("li", {}, el("button", { type: "button", class: "link", onclick: () => { showDetail(n.id); if (state.cy) { state.cy.elements().unselect(); state.cy.getElementById(n.id).select(); } } }, n.label),
+      list.append(el("li", {}, el("button", { type: "button", class: "link", onclick: () => { showDetail(n.id); if (state.cy) { state.cy.elements().unselect(); state.cy.getElementById(n.id).select(); } if (state.g3) window.AMGraph3D.focus(state.g3, n.id); } }, n.label),
         " · " + (R.KIND[n.kind] || n.kind) + " · " + (R.STATUS[n.status] || n.status)));
     }
     list.append(el("li", {}, el("strong", {}, "Vazby (" + rel.length + ")")));
@@ -182,11 +210,14 @@
       draw();
     },
     clear() {
-      if (state.cy) { state.cy.destroy(); state.cy = null; }
+      clearDrawing();
       state.map = null; state.scope = null; state.graph = null;
       $("graph-scope").replaceChildren(); $("graph-detail").replaceChildren(); $("graph-overview").replaceChildren();
       $("graph-info").textContent = "Připojte se tokenem – bez něj se nic nezobrazí.";
     },
   });
   $("graph-scope").addEventListener("change", (e) => select(fromPicker(e.target.value)));
+  for (const button of document.querySelectorAll("[data-graph-mode]")) {
+    button.addEventListener("click", () => { state.mode = button.dataset.graphMode; if (state.map) draw(); });
+  }
 })();

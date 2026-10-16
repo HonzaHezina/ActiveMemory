@@ -23,7 +23,7 @@ Každý úkol je samostatný commit/PR s behavior testem. Nejdřív osobní pam�
 | ID | Úkol |
 |---|---|
 | AM-014 | editace kandidátů s historií (nová verze + událost, původní zachovat) |
-| AM-015 | mapa témat a vývoje myšlenek nad událostmi. **První verze hotová**: pohled Graf (Cytoscape.js, jen čtení, jedna konverzace nebo téma, max. 60 uzlů). Zbývá: vývoj v čase, filtrování, rozhodování z grafu, výkon nad velkými grafy |
+| AM-015 | mapa témat a vývoje myšlenek nad událostmi. **První verze hotová**: pohled Graf (3D výchozí + plošný Cytoscape.js, jen čtení, jedna konverzace nebo téma, max. 60 uzlů). Zbývá: vývoj v čase, filtrování, rozhodování z grafu, výkon nad velkými grafy |
 | AM-016 | oddělení rendereru do samostatné komponenty, jež čte jen veřejné REST/události |
 | AM-017 | odběr událostí pro janAGI a další klienty (kurzor je připraven; push/SSE až po rozhodnutí) |
 | AM-018 | další producenti a typy událostí (agenti, předávání práce, lidské brány, kroky bez AI) |

@@ -31,6 +31,8 @@ def test_ui_shell_is_served_with_strict_headers_and_no_data(app):
             ("/ui/paste_logic.js", "javascript"),
             ("/ui/graph_logic.js", "javascript"),
             ("/ui/cytoscape.min.js", "javascript"),
+            ("/ui/graph3d.js", "javascript"),
+            ("/ui/3d-force-graph.min.js", "javascript"),
         ):
             response = anonymous.get(path)
             assert response.status_code == 200 and kind in response.headers["content-type"]
@@ -61,7 +63,7 @@ def test_ui_has_no_inline_scripts_external_resources_or_html_injection_sinks():
     code = "".join(
         p.read_text(encoding="utf-8")
         for p in sorted(UI.glob("*.js"))
-        if p.name != "cytoscape.min.js"
+        if p.name not in ("cytoscape.min.js", "3d-force-graph.min.js")
     )
     for sink in (
         "innerHTML",
@@ -152,6 +154,29 @@ def test_vendored_graph_library_is_pinned_licensed_and_not_loaded_from_a_cdn():
     library = (UI / "cytoscape.min.js").read_text(encoding="utf-8")
     assert "Cytoscape Consortium" in library and "eval(" not in library
     assert "new Function" not in library  # works under script-src 'self' without unsafe-eval
+
+
+def test_3d_graph_library_is_vendored_licensed_and_uses_no_eval_engine_or_html_tooltip():
+    html = (UI / "index.html").read_text(encoding="utf-8")
+    assert 'src="/ui/3d-force-graph.min.js"' in html and "cdn" not in html
+    assert html.index("3d-force-graph.min.js") < html.index("graph3d.js") < html.index("graph.js")
+    assert "MIT" in (UI / "3d-force-graph.LICENSE").read_text(encoding="utf-8")
+    assert (
+        (UI / "3d-force-graph.min.js")
+        .read_text(encoding="utf-8")
+        .startswith("// Version 1.80.1 3d-force-graph")
+    )
+    library = (UI / "3d-force-graph.min.js").read_text(encoding="utf-8")
+    # Its three inline <style> injections are disabled (the CSP refuses them); the rules live in app.css.
+    assert "typeof document){var i=document.head" not in library
+    assert ".float-tooltip-kap" in (UI / "app.css").read_text(encoding="utf-8")
+    code = (UI / "graph3d.js").read_text(encoding="utf-8")
+    # The bundle also contains the ngraph engine, which compiles code with `new Function` and would be
+    # refused by our CSP. It is never selected; the default d3 engine needs no eval.
+    assert "forceEngine" not in code
+    # The library's tooltip inserts HTML, so it is switched off and labels are set as text.
+    assert 'nodeLabel(() => "")' in code and 'linkLabel(() => "")' in code
+    assert "textContent = n.label" in code
 
 
 def test_settings_page_never_prefills_or_stores_secrets_and_changes_only_through_the_api():

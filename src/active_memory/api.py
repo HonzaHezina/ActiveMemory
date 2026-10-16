@@ -116,6 +116,9 @@ def create_app(settings=None):
         "graph_logic.js": ("graph_logic.js", "text/javascript; charset=utf-8"),
         "cytoscape.min.js": ("cytoscape.min.js", "text/javascript; charset=utf-8"),
         "cytoscape.LICENSE": ("cytoscape.LICENSE", "text/plain; charset=utf-8"),
+        "graph3d.js": ("graph3d.js", "text/javascript; charset=utf-8"),
+        "3d-force-graph.min.js": ("3d-force-graph.min.js", "text/javascript; charset=utf-8"),
+        "3d-force-graph.LICENSE": ("3d-force-graph.LICENSE", "text/plain; charset=utf-8"),
         "review": ("index.html", "text/html; charset=utf-8"),
     }
     ui_headers = {

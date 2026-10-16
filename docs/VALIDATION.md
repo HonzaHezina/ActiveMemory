@@ -59,6 +59,7 @@ Bez Dockeru a bez modelových klíčů. Neo4j 5.26.31 Community byl spuštěn lo
 | Kontrola | Výsledek |
 |---|---|
 | uv sync --frozen, ruff, ruff format, pytest | prošly; 19 passed, 4 skipped (opt-in) |
+| 3D graf: reálný server (jiný port, vlastní datový adresář) + `demo_review_queue.py`, headless Chrome (puppeteer-core, swiftshader): WebGL canvas, popisky, klik na uzel otevře detail, přepnutí na plošný pohled a zpět, mobilní šířka 390 px bez vodorovného posunu, **konzole bez CSP chyb** (před vypnutím vkládání stylů knihovnou jich bylo 6) | prošlo; skript není v repu; plynulost na skutečné GPU a s velkým grafem neměřena |
 | Reálný `active-memory serve` + `init` + `scripts/demo.py` | prošlo: 3 epizody, 3 uzly, 2 vazby, kontext 3 položky |
 | `tests/test_live_graph.py -k native` proti lokálnímu Neo4j | 1 passed |
 | `tests/test_stack_integration.py` (bez modelu, API subprocess + Neo4j): ingest, hotové joby, zdrojové UUID v mapě, restart API, restart, smazání, purge z Neo4j | 1 passed |

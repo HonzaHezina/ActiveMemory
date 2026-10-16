@@ -65,6 +65,11 @@ Neškáluj horizontálně před AM-006.
 Nenačítá se z CDN (CSP povoluje jen `'self'`). Aktualizace: stáhnout konkrétní verzi z npm balíčku `cytoscape`,
 nahradit soubor i licenci a spustit `pytest` a Node testy.
 
+`src/active_memory/ui/3d-force-graph.min.js` je přibalený 3d-force-graph 1.80.1 (MIT, `3d-force-graph.LICENSE`; obsahuje Three.js a d3-force-3d, vše MIT/ISC).
+Je to soubor `dist/3d-force-graph.min.js` z npm balíčku, **s jednou úpravou**: tři vložení inline `<style>` (`"undefined"!=typeof document){var i=document.head`
+→ `0){var i=document.head`), protože CSP inline styly zakazuje; potřebná pravidla jsou v `app.css`. Při aktualizaci úpravu zopakuj (hlídá ji `tests/test_ui.py`).
+Balík také obsahuje engine ngraph, který používá `new Function`; UI ho nikdy nevybírá (výchozí je d3), proto CSP bez `unsafe-eval` stačí.
+
 ## Připojení chatovacích aplikací
 
 Dnes funguje jen lokální MCP most (stdio) a REST. Webové chaty (ChatGPT, Claude.ai) by potřebovaly vzdálený MCP přes HTTPS s vlastním
